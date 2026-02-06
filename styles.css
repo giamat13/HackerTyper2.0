@@ -1,0 +1,797 @@
+/* ==================== ROOT & RESET ==================== */
+:root {
+    --primary: #0f0;
+    --primary-glow: rgba(0, 255, 0, 0.5);
+    --bg-dark: #000;
+    --bg-panel: rgba(10, 14, 39, 0.98);
+    --accent: #0ff;
+    --danger: #f00;
+    --warning: #ff0;
+    --font-mono: 'Share Tech Mono', 'JetBrains Mono', monospace;
+    --transition-fast: 0.15s;
+    --transition-normal: 0.3s;
+    --z-boot: 20000;
+    --z-overlay: 19999;
+    --z-taskbar: 10000;
+    --z-window-base: 100;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background: radial-gradient(circle at center, #1a2c1a 0%, #000 120%);
+    color: var(--primary);
+    font-family: var(--font-mono);
+    overflow: hidden;
+    height: 100vh;
+    cursor: none;
+}
+
+/* ==================== CRT EFFECT ==================== */
+.crt-overlay {
+    position: fixed;
+    inset: 0;
+    background: 
+        linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
+        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+    background-size: 100% 2px, 2px 100%;
+    pointer-events: none;
+    z-index: var(--z-overlay);
+    animation: flicker 0.15s infinite;
+}
+
+@keyframes flicker {
+    0%, 100% { opacity: 0.97; }
+    50% { opacity: 1; }
+}
+
+/* ==================== CUSTOM CURSOR ==================== */
+.cursor {
+    position: fixed;
+    width: 15px;
+    height: 15px;
+    border: 2px solid var(--primary);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: calc(var(--z-overlay) + 1);
+    box-shadow: 0 0 10px var(--primary);
+    transition: transform var(--transition-fast);
+}
+
+.cursor.clicking {
+    transform: translate(-50%, -50%) scale(0.8);
+    background: var(--primary-glow);
+}
+
+/* ==================== BOOT SCREEN ==================== */
+.boot-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg-dark);
+    z-index: var(--z-boot);
+    padding: 40px;
+    font-family: var(--font-mono);
+    color: var(--primary);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.boot-screen.hidden {
+    display: none;
+}
+
+.boot-log {
+    font-size: 16px;
+    line-height: 1.5;
+    text-shadow: 0 0 5px var(--primary);
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* ==================== DESKTOP ==================== */
+.desktop {
+    position: relative;
+    width: 100%;
+    height: calc(100vh - 60px);
+    background: url('data:image/svg+xml,<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse"><path d="M 100 0 L 0 0 0 100" fill="none" stroke="rgba(0,255,0,0.05)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+}
+
+/* ==================== TASKBAR ==================== */
+.taskbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: rgba(0, 20, 0, 0.95);
+    border-top: 2px solid var(--primary);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 15px;
+    z-index: var(--z-taskbar);
+    box-shadow: 0 -5px 30px var(--primary-glow);
+    backdrop-filter: blur(10px);
+}
+
+.app-icon {
+    width: 50px;
+    height: 50px;
+    background: rgba(0, 255, 0, 0.1);
+    border: 2px solid var(--primary);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    position: relative;
+}
+
+.app-icon:hover {
+    background: rgba(0, 255, 0, 0.3);
+    transform: translateY(-5px);
+    box-shadow: 0 5px 20px var(--primary-glow);
+}
+
+.app-icon.active::before {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 30px;
+    height: 3px;
+    background: var(--primary);
+    box-shadow: 0 0 10px var(--primary);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.app-icon svg {
+    width: 28px;
+    height: 28px;
+    fill: var(--primary);
+}
+
+.app-label {
+    font-size: 8px;
+    margin-top: 2px;
+    color: var(--primary);
+    text-transform: uppercase;
+}
+
+.clock {
+    color: var(--primary);
+    font-size: 20px;
+    font-weight: bold;
+    text-shadow: 0 0 10px var(--primary);
+    user-select: none;
+}
+
+/* ==================== WINDOWS ==================== */
+.window {
+    position: absolute;
+    background: var(--bg-panel);
+    border: 2px solid var(--primary);
+    border-radius: 12px;
+    box-shadow: 0 10px 50px var(--primary-glow);
+    min-width: 400px;
+    display: none;
+    resize: both;
+    overflow: hidden;
+}
+
+.window.active {
+    display: flex;
+    flex-direction: column;
+    animation: windowOpen var(--transition-normal) ease-out;
+}
+
+@keyframes windowOpen {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.window.minimized {
+    display: none !important;
+}
+
+.window.maximized {
+    width: calc(100vw - 40px) !important;
+    height: calc(100vh - 120px) !important;
+    left: 20px !important;
+    top: 20px !important;
+    resize: none;
+}
+
+.window-header {
+    background: linear-gradient(135deg, #0a3d0a 0%, var(--primary) 100%);
+    color: #000;
+    padding: 12px 15px;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: move;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.window-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+}
+
+.window-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.window-btn {
+    width: 28px;
+    height: 28px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 2px solid #000;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+    font-weight: bold;
+    font-size: 18px;
+}
+
+.window-btn:hover {
+    background: #000;
+    transform: scale(1.1);
+}
+
+.window-btn.minimize { background: var(--warning); }
+.window-btn.maximize { background: var(--accent); }
+.window-btn.close { background: var(--danger); }
+
+.window-content {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+}
+
+/* ==================== TYPERSCENE INTEGRATION ==================== */
+.typerscene-container {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+}
+
+.typer-controls {
+    background: rgba(0, 20, 0, 0.8);
+    border-bottom: 1px solid var(--primary);
+    padding: 10px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.typer-btn {
+    background: rgba(0, 255, 0, 0.1);
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    transition: all var(--transition-fast);
+}
+
+.typer-btn:hover {
+    background: rgba(0, 255, 0, 0.3);
+    box-shadow: 0 0 10px var(--primary-glow);
+}
+
+.typer-btn:active {
+    transform: scale(0.95);
+}
+
+.typer-select {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.typer-screen-wrap {
+    flex: 1;
+    overflow: auto;
+    padding: 20px;
+    position: relative;
+}
+
+.typer-screen {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+    text-shadow: 0 0 5px var(--primary-glow);
+}
+
+.typer-cursor {
+    display: inline-block;
+    width: 10px;
+    height: 20px;
+    background: var(--primary);
+    animation: blink 1s step-end infinite;
+    margin-left: 2px;
+    vertical-align: text-bottom;
+}
+
+@keyframes blink {
+    0%, 50% { opacity: 1; }
+    51%, 100% { opacity: 0; }
+}
+
+/* Syntax Highlighting */
+.kw { color: #7fffb5; }
+.type { color: #7ee0ff; }
+.str { color: #ffd19a; }
+.num { color: #ffb3b3; }
+.comment { color: #6a7b6a; font-style: italic; }
+.fn { color: #ffd1ff; }
+.punct { color: #cfe8ff; }
+
+/* ==================== NETWORK MAP ==================== */
+.network-map {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    background: radial-gradient(circle at center, #0a1a0a 0%, #000 100%);
+}
+
+.network-node {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    background: radial-gradient(circle, var(--primary) 0%, #0a0 100%);
+    border: 3px solid var(--primary);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 30px var(--primary);
+    animation: pulse 2s infinite;
+}
+
+.network-line {
+    position: absolute;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--primary), transparent);
+    transform-origin: left center;
+    animation: dataFlow 2s linear infinite;
+}
+
+@keyframes dataFlow {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+}
+
+/* ==================== RADAR ==================== */
+.radar-container {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.radar {
+    width: 400px;
+    height: 400px;
+    border: 3px solid var(--primary);
+    border-radius: 50%;
+    position: relative;
+    box-shadow: 0 0 50px var(--primary-glow);
+}
+
+.radar::before,
+.radar::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border: 2px solid rgba(0, 255, 0, 0.3);
+    border-radius: 50%;
+}
+
+.radar::before {
+    width: 70%;
+    height: 70%;
+}
+
+.radar::after {
+    width: 40%;
+    height: 40%;
+}
+
+.radar-line {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 50%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary), transparent);
+    transform-origin: left center;
+    animation: radarSweep 3s linear infinite;
+}
+
+@keyframes radarSweep {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.radar-blip {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: var(--danger);
+    border-radius: 50%;
+    animation: blipPulse 1s infinite;
+}
+
+@keyframes blipPulse {
+    0%, 100% {
+        box-shadow: 0 0 10px var(--danger);
+        opacity: 1;
+    }
+    50% {
+        box-shadow: 0 0 30px var(--danger);
+        opacity: 0.5;
+    }
+}
+
+/* ==================== STATS / CHARTS ==================== */
+.chart-container {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    padding: 30px;
+}
+
+.bar-chart {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    height: 80%;
+    gap: 20px;
+}
+
+.bar {
+    flex: 1;
+    background: linear-gradient(180deg, var(--primary) 0%, #0a0 100%);
+    border: 2px solid var(--primary);
+    box-shadow: 0 0 20px var(--primary);
+    animation: barGrow 2s ease-out;
+    position: relative;
+    min-height: 20px;
+}
+
+@keyframes barGrow {
+    from { height: 0; }
+}
+
+/* ==================== SYSTEM MONITOR ==================== */
+.system-monitor {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.monitor-row {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.monitor-label {
+    color: var(--primary);
+    font-size: 14px;
+    min-width: 120px;
+}
+
+.progress-bar {
+    flex: 1;
+    height: 30px;
+    background: rgba(0, 255, 0, 0.1);
+    border: 2px solid var(--primary);
+    border-radius: 5px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0a0 0%, var(--primary) 50%, #0a0 100%);
+    background-size: 200% 100%;
+    animation: progressShine 2s linear infinite;
+    box-shadow: 0 0 20px var(--primary);
+}
+
+@keyframes progressShine {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.monitor-value {
+    color: var(--primary);
+    font-size: 16px;
+    font-weight: bold;
+    min-width: 80px;
+    text-align: right;
+}
+
+/* ==================== MATRIX DISPLAY ==================== */
+.matrix-display {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+}
+
+.matrix-char {
+    position: absolute;
+    color: var(--primary);
+    font-size: 20px;
+    animation: matrixFall linear;
+    text-shadow: 0 0 10px var(--primary);
+}
+
+@keyframes matrixFall {
+    from {
+        top: -20px;
+        opacity: 1;
+    }
+    to {
+        top: 100%;
+        opacity: 0;
+    }
+}
+
+/* ==================== GLOBE ==================== */
+.globe-container {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.globe {
+    width: 300px;
+    height: 300px;
+    border: 3px solid var(--primary);
+    border-radius: 50%;
+    position: relative;
+    box-shadow: 0 0 50px var(--primary-glow);
+    animation: rotate3d 20s linear infinite;
+}
+
+@keyframes rotate3d {
+    from { transform: rotateY(0deg); }
+    to { transform: rotateY(360deg); }
+}
+
+.globe-line {
+    position: absolute;
+    width: 100%;
+    height: 2px;
+    background: rgba(0, 255, 0, 0.3);
+    left: 0;
+}
+
+.globe-marker {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: var(--danger);
+    border-radius: 50%;
+    box-shadow: 0 0 20px var(--danger);
+    animation: markerPulse 2s infinite;
+}
+
+@keyframes markerPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.5); }
+}
+
+/* ==================== FIREWALL ==================== */
+.firewall-viz {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    position: relative;
+    overflow: hidden;
+}
+
+.firewall-layer {
+    position: absolute;
+    width: 80%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--primary), transparent);
+    left: 10%;
+    animation: layerScan 3s linear infinite;
+}
+
+@keyframes layerScan {
+    0%, 100% {
+        top: 0%;
+        opacity: 0.5;
+    }
+    50% {
+        top: 100%;
+        opacity: 1;
+    }
+}
+
+.attack-particle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: var(--danger);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--danger);
+    animation: attackMove 2s linear infinite;
+}
+
+@keyframes attackMove {
+    0% {
+        left: 0%;
+        opacity: 1;
+    }
+    80% {
+        opacity: 1;
+    }
+    100% {
+        left: 100%;
+        opacity: 0;
+    }
+}
+
+/* ==================== TERMINAL ==================== */
+.terminal-container {
+    width: 100%;
+    height: 100%;
+    background: #000;
+    color: var(--primary);
+    font-family: var(--font-mono);
+    padding: 15px;
+    overflow-y: auto;
+    font-size: 14px;
+}
+
+.terminal-content {
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 768px) {
+    .window {
+        min-width: 90vw !important;
+        left: 5vw !important;
+    }
+
+    .taskbar {
+        height: 80px;
+        flex-wrap: wrap;
+        padding: 10px;
+    }
+
+    .desktop {
+        height: calc(100vh - 80px);
+    }
+
+    .app-icon {
+        width: 45px;
+        height: 45px;
+    }
+
+    .app-label {
+        font-size: 7px;
+    }
+}
+
+/* ==================== ACCESSIBILITY ==================== */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* Focus styles */
+*:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* ==================== LOADING SPINNER ==================== */
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(0, 255, 0, 0.2);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ==================== SCROLLBAR ==================== */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 0, 0.5);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+}
