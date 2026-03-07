@@ -994,6 +994,29 @@ const SystemState = {
         for (const k of Object.keys(this.throttle)) {
             this.throttle[k] = slowdown(Math.min(100, this[k]));
         }
+
+        // Visual feedback for system overload
+        const avgThrottle = Object.values(this.throttle).reduce((a, b) => a + b, 0) / Object.keys(this.throttle).length;
+        const desktop = document.getElementById('desktop');
+        if (avgThrottle < 0.5) {
+            desktop.classList.add('system-overloaded');
+            if (!document.getElementById('overload-style')) {
+                const style = document.createElement('style');
+                style.id = 'overload-style';
+                style.textContent = `
+                    .system-overloaded .window {
+                        opacity: 0.7;
+                        filter: blur(1px);
+                    }
+                    .system-overloaded .taskbar {
+                        background: rgba(255, 0, 0, 0.1);
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        } else {
+            desktop.classList.remove('system-overloaded');
+        }
     }
 };
 setInterval(() => SystemState.tick(), 1000);
