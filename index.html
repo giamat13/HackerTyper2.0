@@ -14,7 +14,6 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
         import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
-
         const firebaseConfig = {
             apiKey: "AIzaSyAYbaVCWzkkfEaEZyEBsdEvb6mL6JxgCsM",
             authDomain: "fakehacker-prank.firebaseapp.com",
@@ -24,14 +23,9 @@
             appId: "1:351461029122:web:877686697ed86eba19be1b",
             measurementId: "G-KQ901LJ4J1"
         };
-
         const app = initializeApp(firebaseConfig);
         const analytics = getAnalytics(app);
-
-        // Track page view
         logEvent(analytics, 'page_view');
-
-        // Expose analytics globally so script.js can use it
         window._analytics = analytics;
         window._logEvent = logEvent;
     </script>
@@ -51,73 +45,72 @@
 
     <!-- Taskbar -->
     <div class="taskbar" id="taskbar" role="toolbar" aria-label="Application Launcher">
+
         <button class="app-icon" data-app="typerscene" aria-label="Open TyperScene">
-            <svg viewBox="0 0 24 24">
-                <path d="M4 4h16v16H4V4zm2 4v8h12V8H6zm2 2h8v2H8v-2z"/>
-            </svg>
+            <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4V4zm2 4v8h12V8H6zm2 2h8v2H8v-2z"/></svg>
             <span class="app-label">TYPER</span>
         </button>
 
         <button class="app-icon" data-app="network" aria-label="Open Network Map">
-            <svg viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10"/>
-                <circle cx="12" cy="12" r="3"/>
-            </svg>
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
             <span class="app-label">NETWORK</span>
         </button>
 
         <button class="app-icon" data-app="radar" aria-label="Open Radar">
-            <svg viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M12 2 L12 12"/>
-            </svg>
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2 L12 12"/></svg>
             <span class="app-label">RADAR</span>
         </button>
 
         <button class="app-icon" data-app="stats" aria-label="Open Statistics">
-            <svg viewBox="0 0 24 24">
-                <rect x="4" y="14" width="4" height="6"/>
-                <rect x="10" y="8" width="4" height="12"/>
-                <rect x="16" y="11" width="4" height="9"/>
-            </svg>
+            <svg viewBox="0 0 24 24"><rect x="4" y="14" width="4" height="6"/><rect x="10" y="8" width="4" height="12"/><rect x="16" y="11" width="4" height="9"/></svg>
             <span class="app-label">STATS</span>
         </button>
 
         <button class="app-icon" data-app="monitor" aria-label="Open System Monitor">
-            <svg viewBox="0 0 24 24">
-                <rect x="2" y="3" width="20" height="14" rx="2"/>
-                <path d="M8 21h8M12 17v4"/>
-            </svg>
+            <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
             <span class="app-label">SYSTEM</span>
         </button>
 
         <button class="app-icon" data-app="matrix" aria-label="Open Matrix Stream">
-            <svg viewBox="0 0 24 24">
-                <path d="M4 6h16M4 12h16M4 18h16"/>
-            </svg>
+            <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
             <span class="app-label">MATRIX</span>
         </button>
 
         <button class="app-icon" data-app="globe" aria-label="Open Global Tracking">
-            <svg viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10"/>
-                <path d="M2 12h20M12 2a10 10 0 0 0 0 20M12 2a10 10 0 0 1 0 20"/>
-            </svg>
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a10 10 0 0 0 0 20M12 2a10 10 0 0 1 0 20"/></svg>
             <span class="app-label">GLOBE</span>
         </button>
 
         <button class="app-icon" data-app="terminal" aria-label="Open Terminal">
-            <svg viewBox="0 0 24 24">
-                <path d="M4 4h16v16H4V4zm2 4v8h12V8H6zm2 2h8v2H8v-2z"/>
-            </svg>
+            <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4V4zm2 4l4 4-4 4m6 0h4"/></svg>
             <span class="app-label">TERMINAL</span>
         </button>
 
         <button class="app-icon" data-app="firewall" aria-label="Open Firewall">
-            <svg viewBox="0 0 24 24">
-                <path d="M12 2L4 6v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V6l-8-4z"/>
-            </svg>
+            <svg viewBox="0 0 24 24"><path d="M12 2L4 6v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V6l-8-4z"/></svg>
             <span class="app-label">FIREWALL</span>
+        </button>
+
+        <!-- NEW APPS -->
+
+        <button class="app-icon" data-app="downloader" aria-label="Open File Exfiltration">
+            <svg viewBox="0 0 24 24"><path d="M12 2v12m-5-5l5 5 5-5M4 20h16"/></svg>
+            <span class="app-label">EXFIL</span>
+        </button>
+
+        <button class="app-icon" data-app="malware" aria-label="Open Payload Deployer">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>
+            <span class="app-label">PAYLOAD</span>
+        </button>
+
+        <button class="app-icon" data-app="miner" aria-label="Open Crypto Miner">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.34v-1.67c1.52-.29 2.72-1.16 2.73-2.77-.01-2.2-1.9-2.96-3.66-3.42z"/></svg>
+            <span class="app-label">MINER</span>
+        </button>
+
+        <button class="app-icon" data-app="cracker" aria-label="Open Password Cracker">
+            <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <span class="app-label">CRACK</span>
         </button>
 
         <div style="flex-grow: 1;"></div>
