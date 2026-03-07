@@ -228,6 +228,7 @@ class WindowManager {
 
     _buildWindow(appName, appConfig) {
         const element = Utils.createElement('div', 'window active');
+        element.dataset.app = appName;
         element.style.left = (100 + Utils.random(0, 200)) + 'px';
         element.style.top = (50 + Utils.random(0, 100)) + 'px';
         element.style.zIndex = ++this.zIndex;
@@ -389,13 +390,16 @@ class TyperScene {
         if (this.isTyping) return;
         this.isTyping = true;
         SystemState.setBoost('typerscene', { cpu: [15, 32], ram: [10, 24], diskio: [5, 16] });
+        const speedMultiplier = SystemState.getSpeedMultiplier('cpu');
+        const baseInterval = 50;
+        const adjustedInterval = Math.max(20, baseInterval / speedMultiplier); // Minimum 20ms
         this.typingInterval = setInterval(() => {
             const t = SystemState.getThrottle(['cpu','ram']);
             if (Math.random() < t) {
                 this.typeChunk();
                 if (this.pointer >= this.rawText.length) this.stop();
             }
-        }, 50);
+        }, adjustedInterval);
     }
 
     stop() {
@@ -792,6 +796,22 @@ const SystemState = {
     cpu: 12, ram: 28, gpu: 5, network: 8, diskio: 10, bandwidth: 15,
     minerRunning: false,
 
+    // Base resource usage for each app (in relative units, realistic values)
+    baseUsage: {
+        typerscene: { cpu: 2, ram: 1, gpu: 0.3, network: 0.1, diskio: 0.2, bandwidth: 0.2 },
+        network: { cpu: 1, ram: 1, gpu: 0.2, network: 3, diskio: 0.2, bandwidth: 2 },
+        radar: { cpu: 2, ram: 1, gpu: 1, network: 2, diskio: 0.1, bandwidth: 1 },
+        monitor: { cpu: 0.5, ram: 0.5, gpu: 0, network: 0, diskio: 0.1, bandwidth: 0 },
+        matrix: { cpu: 3, ram: 2, gpu: 4, network: 0.2, diskio: 0.1, bandwidth: 0.3 },
+        globe: { cpu: 2, ram: 1.5, gpu: 3, network: 1, diskio: 0.2, bandwidth: 1.5 },
+        terminal: { cpu: 1, ram: 0.5, gpu: 0, network: 0.1, diskio: 1, bandwidth: 0.2 },
+        firewall: { cpu: 2, ram: 1, gpu: 0.3, network: 3, diskio: 0.1, bandwidth: 2.5 },
+        downloader: { cpu: 1, ram: 1, gpu: 0.1, network: 1, diskio: 2, bandwidth: 5 },
+        malware: { cpu: 3, ram: 1.5, gpu: 0.5, network: 2, diskio: 0.5, bandwidth: 1.5 },
+        miner: { cpu: 10, ram: 3, gpu: 8, network: 0.5, diskio: 0.3, bandwidth: 1 },
+        cracker: { cpu: 5, ram: 2, gpu: 0.2, network: 0.3, diskio: 0.6, bandwidth: 0.4 }
+    },
+
     // throttle[resource] = 0..1 multiplier — 1 = full speed, 0 = stopped
     // apps read this to slow their intervals
     throttle: { cpu:1, ram:1, gpu:1, network:1, diskio:1, bandwidth:1 },
@@ -817,7 +837,114 @@ const SystemState = {
         return sum;
     },
 
-    // Returns a 0..1 speed multiplier for an app based on which resources it uses.
+    // Get configured hardware specs
+    getHardwareSpecs() {
+        return {
+            ram: CONFIG.settings.ram,
+            cpuModel: CONFIG.settings.cpuModel,
+            gpuModel: CONFIG.settings.gpuModel,
+            storage: CONFIG.settings.storage,
+            storageType: CONFIG.settings.storageType
+        };
+    },
+
+    // Calculate percentage based on configured hardware
+    getPercentage(resource, usage) {
+        const specs = this.getHardwareSpecs();
+        let maxCapacity;
+
+        switch(resource) {
+            case 'ram':
+                maxCapacity = specs.ram;
+                break;
+            case 'cpu':
+                // CPU performance based on model (cores/threads equivalent)
+                const cpuScores = {
+                    'Intel Core i3': 4,
+                    'Intel Core i5': 6,
+                    'Intel Core i7-9700K': 8,
+                    'Intel Core i9': 16,
+                    'AMD Ryzen 5': 6,
+                    'AMD Ryzen 7': 8,
+                    'AMD Ryzen 9': 16
+                };
+                maxCapacity = cpuScores[specs.cpuModel] || 8;
+                break;
+            case 'gpu':
+                // GPU performance score
+                const gpuScores = {
+                    'Integrated': 2,
+                    'NVIDIA GTX 1650': 8,
+                    'NVIDIA RTX 3080': 20,
+                    'AMD Radeon RX 580': 12
+                };
+                maxCapacity = gpuScores[specs.gpuModel] || 10;
+                break;
+            case 'network':
+                maxCapacity = 100; // Mbps
+                break;
+            case 'diskio':
+                maxCapacity = specs.storageType === 'SSD' ? 500 : 150; // MB/s
+                break;
+            case 'bandwidth':
+                maxCapacity = 100; // Mbps
+                break;
+            default:
+                maxCapacity = 100;
+        }
+        return Math.min(100, (usage / maxCapacity) * 100);
+    },
+
+    // Calculate performance multiplier based on hardware specs (1.0 = baseline, higher = faster)
+    getPerformanceMultiplier() {
+        const specs = this.getHardwareSpecs();
+        let multiplier = 1.0;
+
+        // CPU performance multiplier
+        const cpuScores = {
+            'Intel Core i3': 0.7,
+            'Intel Core i5': 0.9,
+            'Intel Core i7-9700K': 1.0,
+            'Intel Core i9': 1.3,
+            'AMD Ryzen 5': 0.9,
+            'AMD Ryzen 7': 1.0,
+            'AMD Ryzen 9': 1.3
+        };
+        multiplier *= cpuScores[specs.cpuModel] || 1.0;
+
+        // RAM performance multiplier
+        const ramMultiplier = specs.ram / 16; // 16GB = baseline
+        multiplier *= Math.max(0.5, Math.min(1.5, ramMultiplier));
+
+        // GPU performance multiplier (affects GPU-intensive tasks)
+        const gpuScores = {
+            'Integrated': 0.6,
+            'NVIDIA GTX 1650': 0.8,
+            'NVIDIA RTX 3080': 1.2,
+            'AMD Radeon RX 580': 0.9
+        };
+        multiplier *= gpuScores[specs.gpuModel] || 1.0;
+
+        // Storage performance multiplier (affects disk operations)
+        const storageMultiplier = specs.storageType === 'SSD' ? 1.2 : 0.8;
+        multiplier *= storageMultiplier;
+
+        return multiplier;
+    },
+
+    // Get speed multiplier for specific resource type
+    getSpeedMultiplier(resourceType = 'general') {
+        const baseMultiplier = this.getPerformanceMultiplier();
+
+        // Different resources have different performance characteristics
+        switch(resourceType) {
+            case 'cpu': return baseMultiplier;
+            case 'gpu': return baseMultiplier * 1.2; // GPU tasks benefit more from good hardware
+            case 'disk': return baseMultiplier * (CONFIG.settings.storageType === 'SSD' ? 2.0 : 0.7);
+            case 'network': return baseMultiplier * 0.8; // Network less affected by local hardware
+            default: return baseMultiplier;
+        }
+    },
     // Pass the array of resource keys this app depends on.
     // The more saturated those resources, the lower the returned value.
     getThrottle(resources) {
@@ -846,14 +973,15 @@ const SystemState = {
         this.bandwidth = drift(this.bandwidth, baseLoad * 0.5 + b.bandwidth,5, 1, 99);
 
         // Update throttle factors.
-        // Below 85%: no slowdown. 85-99%: gradual. 99-100%: severe.
+        // Below 80%: no slowdown. 80-95%: gradual. 95-100%: severe.
         const slowdown = (v) => {
-            if (v < 85) return 1;
-            if (v < 99) return 1 - (v - 85) / 14 * 0.6;   // 1.0 → 0.4
-            return 0.15 + Math.random() * 0.1;              // 0.15-0.25 at max
+            if (v < 80) return 1;
+            if (v < 95) return 1 - (v - 80) / 15 * 0.7;   // 1.0 → 0.3
+            if (v < 100) return 0.25 + Math.random() * 0.05;              // 0.25-0.3 at high load
+            return 0.05 + Math.random() * 0.05;              // 0.05-0.1 at 100% (severe throttle)
         };
         for (const k of Object.keys(this.throttle)) {
-            this.throttle[k] = slowdown(this[k]);
+            this.throttle[k] = slowdown(Math.min(100, this[k]));
         }
     }
 };
@@ -934,11 +1062,14 @@ const APPS = {
                 logEl.prepend(entry);
                 if (logEl.children.length > 18) logEl.lastChild.remove();
             };
+            const speedMultiplier = SystemState.getSpeedMultiplier('network');
+            const baseInterval = 300;
+            const adjustedInterval = Math.max(100, baseInterval / speedMultiplier);
             const packetInterval = setInterval(() => {
                 const t = SystemState.getThrottle(['network','bandwidth']);
                 const count = Math.round((1 + Math.random() * 3) * (2 - t)); // more packets when congested
                 for (let i = 0; i < count; i++) addPacket();
-            }, 300);
+            }, adjustedInterval);
             SystemState.setBoost('network', { network: [30, 60], bandwidth: [40, 70], cpu: [4, 14] });
             container.cleanup = () => { clearInterval(packetInterval); SystemState.clearBoost('network'); };
         }
@@ -965,6 +1096,9 @@ const APPS = {
             const threatLog = Utils.createElement('div', 'radar-threat-log');
             container.appendChild(threatLog);
             const threatTypes = ['PORT SCAN','BRUTE FORCE','MITM','DDoS','C2 BEACON','EXPLOIT','DATA EXFIL','BOTNET'];
+            const speedMultiplier = SystemState.getSpeedMultiplier('cpu');
+            const baseInterval = 600;
+            const adjustedInterval = Math.max(200, baseInterval / speedMultiplier);
             const threatInterval = setInterval(() => {
                 if (Math.random() > 0.55) return;
                 const entry = document.createElement('div');
@@ -976,7 +1110,7 @@ const APPS = {
                 entry.innerHTML = `<span class="rt-type">${type}</span> <span class="rt-ip">${ip}</span> <span class="rt-sev" style="color:${sevColor}">[${severity}]</span>`;
                 threatLog.prepend(entry);
                 if (threatLog.children.length > 10) threatLog.lastChild.remove();
-            }, 600);
+            }, adjustedInterval);
             SystemState.setBoost('radar', { network: [15, 40], cpu: [14, 32], gpu: [5, 18] });
             container.cleanup = () => { clearInterval(threatInterval); SystemState.clearBoost('radar'); };
         }
@@ -1022,8 +1156,34 @@ const APPS = {
             container.appendChild(throttleRow);
 
             const updateInterval = setInterval(() => {
+                // Calculate actual usage based on running apps
+                const runningApps = {};
+                document.querySelectorAll('.window').forEach(win => {
+                    const appName = win.dataset.app;
+                    if (appName && SystemState.baseUsage[appName]) {
+                        runningApps[appName] = (runningApps[appName] || 0) + 1;
+                    }
+                });
+
+                const totalUsage = { cpu: 0, ram: 0, gpu: 0, network: 0, diskio: 0, bandwidth: 0 };
+                Object.entries(runningApps).forEach(([appName, count]) => {
+                    const base = SystemState.baseUsage[appName];
+                    if (base) {
+                        Object.keys(totalUsage).forEach(resource => {
+                            totalUsage[resource] += base[resource] * count;
+                        });
+                    }
+                });
+
+                // Add minimal base system usage
+                totalUsage.cpu += 0.5;
+                totalUsage.ram += 0.3;
+
                 metrics.forEach(m => {
-                    const v = Math.round(SystemState[m.key]);
+                    const usage = totalUsage[m.key] || 0;
+                    const percentage = SystemState.getPercentage(m.key, usage);
+                    const v = Math.round(percentage);
+
                     const fill = document.getElementById('mon-fill-' + m.key);
                     const val  = document.getElementById('mon-val-'  + m.key);
                     if (fill) fill.style.width = v + '%';
@@ -1049,13 +1209,21 @@ const APPS = {
                 // Throttle status summary
                 const tr = document.getElementById('mon-throttle');
                 if (tr) {
-                    const saturated = metrics.filter(m => SystemState[m.key] >= 95);
+                    const saturated = metrics.filter(m => {
+                        const usage = totalUsage[m.key] || 0;
+                        const percentage = SystemState.getPercentage(m.key, usage);
+                        return percentage >= 95;
+                    });
                     if (saturated.length > 0) {
                         tr.innerHTML = `⚠ THROTTLING: ${saturated.map(m => m.label).join(', ')} — APPS SLOWED`;
                         tr.style.color = 'var(--danger)';
                         tr.style.animation = 'throttleFlicker 0.5s ease infinite';
                     } else {
-                        const high = metrics.filter(m => SystemState[m.key] >= 80);
+                        const high = metrics.filter(m => {
+                            const usage = totalUsage[m.key] || 0;
+                            const percentage = SystemState.getPercentage(m.key, usage);
+                            return percentage >= 80;
+                        });
                         if (high.length > 0) {
                             tr.innerHTML = `⚡ HIGH LOAD: ${high.map(m => m.label).join(', ')}`;
                             tr.style.color = 'var(--warning)';
@@ -1092,6 +1260,9 @@ const APPS = {
             const chars = '01アイウエオカキクケコ';
 
             // Internal stream inside the window
+            const speedMultiplier = SystemState.getSpeedMultiplier('gpu');
+            const baseInterval = 200;
+            const adjustedInterval = Math.max(50, baseInterval / speedMultiplier);
             const internalInterval = setInterval(() => {
                 const t = SystemState.getThrottle(['cpu','gpu']);
                 if (Math.random() > t) return;   // drop frames when overloaded
@@ -1102,7 +1273,7 @@ const APPS = {
                 char.style.animationDuration = (Math.random() * 3 + 2) / Math.max(t, 0.15) + 's';
                 container.appendChild(char);
                 setTimeout(() => char.remove(), 5000);
-            }, 200);
+            }, adjustedInterval);
 
             container.cleanup = () => {
                 clearInterval(internalInterval);
@@ -1134,6 +1305,9 @@ const APPS = {
 
             // EFFECT: floating coordinate/IP tags drift across desktop
             const cities = ['MOSCOW','BEIJING','TOKYO','LONDON','DUBAI','BERLIN','SYDNEY','CAIRO','PARIS','SEOUL'];
+            const speedMultiplier = SystemState.getSpeedMultiplier('gpu');
+            const baseInterval = 1000;
+            const adjustedInterval = Math.max(300, baseInterval / speedMultiplier);
             const globeInterval = setInterval(() => {
                 const tag = document.createElement('div');
                 const lat = (Math.random()*170-85).toFixed(2);
@@ -1170,6 +1344,9 @@ const APPS = {
             container.appendChild(content);
             const code = `$ sudo systemctl start cyber-nexus\n[OK] Starting Cyber Nexus System...\n[OK] Loaded kernel modules\n[OK] Network interface initialized\n[OK] Security protocols active\n\n$ cat /proc/sys/net\nIPv4: 192.168.1.100\nIPv6: fe80::1\nGateway: 192.168.1.1\nDNS: 8.8.8.8\n\n$ ps aux | grep cyber\nroot  1234  0.5  2.1  System Core\nroot  1235  0.3  1.8  Network Monitor\nroot  1236  0.1  0.9  Security Daemon\n\n$ █`;
             let index = 0;
+            const speedMultiplier = SystemState.getSpeedMultiplier('disk');
+            const baseInterval = 30;
+            const adjustedInterval = Math.max(10, baseInterval / speedMultiplier);
             const typeInterval = setInterval(() => {
                 const t = SystemState.getThrottle(['diskio','cpu']);
                 if (index < code.length && Math.random() < t) {
@@ -1180,7 +1357,7 @@ const APPS = {
                     // typing done — drop to near-idle
                     SystemState.setBoost('terminal', { cpu: [1, 3], diskio: [1, 4] });
                 }
-            }, 30);
+            }, adjustedInterval);
             container.cleanup = () => {
                 clearInterval(typeInterval);
                 SystemState.clearBoost('terminal');
@@ -1200,6 +1377,9 @@ const APPS = {
             }
 
             let attackCount = 0;
+            const speedMultiplier = SystemState.getSpeedMultiplier('network');
+            const baseInterval = 500;
+            const adjustedInterval = Math.max(200, baseInterval / speedMultiplier);
             const particleInterval = setInterval(() => {
                 const t = SystemState.getThrottle(['network','cpu']);
                 // when network saturated, MORE attacks flood through (inverse throttle for visual drama)
@@ -1225,7 +1405,7 @@ const APPS = {
                     const fwin = container.closest('.window');
                     if (fwin) { fwin.style.boxShadow = '0 0 30px rgba(255,0,0,0.8)'; setTimeout(() => fwin.style.boxShadow = '', 400); }
                 }
-            }, 500);
+            }, adjustedInterval);
             container.cleanup = () => {
                 clearInterval(particleInterval);
                 SystemState.clearBoost('firewall');
@@ -1267,11 +1447,12 @@ const APPS = {
             const log = container.querySelector('#dl-log');
             const speedEl = container.querySelector('#dl-speed');
 
+            const speedMultiplier = SystemState.getSpeedMultiplier('network');
             const speedInterval = setInterval(() => {
                 const t = SystemState.getThrottle(['bandwidth','network']);
                 speedEl.textContent = ((Math.random() * 50 + 10) * t).toFixed(1) + ' MB/s';
                 speedEl.style.color = t < 0.5 ? 'var(--danger)' : t < 0.8 ? 'var(--warning)' : '';
-            }, 800);
+            }, Math.max(400, 800 / speedMultiplier));
             // EFFECT: thin "scanning" bar crawls across top of each other window
             const scanBars = new Map();
             const dlScanInterval = setInterval(() => {
@@ -1284,7 +1465,7 @@ const APPS = {
                     scanBars.set(win, bar);
                     setTimeout(() => { bar.remove(); scanBars.delete(win); }, 3500);
                 });
-            }, 2500);
+            }, Math.max(1000, 2500 / speedMultiplier));
             container.cleanup = () => {
                 clearInterval(speedInterval); clearInterval(dlScanInterval);
                 document.querySelectorAll('.dl-scan-bar').forEach(b=>b.remove());
@@ -1355,7 +1536,7 @@ const APPS = {
                             fill.style.width = progress + '%';
                             pct.textContent = Math.floor(progress) + '%';
                         }
-                    }, 150);
+                    }, Math.max(50, 150 / speedMultiplier));
                 }, i * 1800);
             });
         }
@@ -1444,6 +1625,7 @@ const APPS = {
                     log.prepend(e);
                     return;
                 }
+                const speedMultiplier = SystemState.getSpeedMultiplier('network');
                 const targets = targetsList.querySelectorAll('.mw-target-item');
                 let delay = 0;
                 targets.forEach(t => {
@@ -1458,7 +1640,7 @@ const APPS = {
                         e.innerHTML = `<span class="mw-log-time">[${new Date().toLocaleTimeString()}]</span> ${selectedPayload.name} → ${ip} <span style="color:#0f0">SUCCESS</span>`;
                         log.prepend(e);
                     }, delay);
-                    delay += Utils.random(300, 700);
+                    delay += Math.max(100, Utils.random(300, 700) / speedMultiplier);
                 });
             });
 
@@ -1503,6 +1685,12 @@ const APPS = {
                     <div class="miner-gpu-bar"><div class="miner-gpu-fill cpu-fill" id="mn-cpu" style="width:0%"></div></div>
                     <span class="miner-gpu-temp" id="mn-ctemp">--°C</span>
                 </div>
+                <div class="miner-system-metrics" id="mn-system">
+                    <div class="miner-metric"><span class="miner-metric-label">CPU:</span> <span id="mn-sys-cpu">0%</span></div>
+                    <div class="miner-metric"><span class="miner-metric-label">RAM:</span> <span id="mn-sys-ram">0%</span></div>
+                    <div class="miner-metric"><span class="miner-metric-label">GPU:</span> <span id="mn-sys-gpu">0%</span></div>
+                    <div class="miner-metric"><span class="miner-metric-label">DISK I/O:</span> <span id="mn-sys-disk">0%</span></div>
+                </div>
                 <div class="miner-controls">
                     <button class="miner-btn start-btn" id="mn-start">▶ START MINING</button>
                     <button class="miner-btn stop-btn" id="mn-stop">⏸ PAUSE</button>
@@ -1519,6 +1707,10 @@ const APPS = {
                 cpu: container.querySelector('#mn-cpu'),
                 temp: container.querySelector('#mn-temp'),
                 ctemp: container.querySelector('#mn-ctemp'),
+                sysCpu: container.querySelector('#mn-sys-cpu'),
+                sysRam: container.querySelector('#mn-sys-ram'),
+                sysGpu: container.querySelector('#mn-sys-gpu'),
+                sysDisk: container.querySelector('#mn-sys-disk'),
                 log: container.querySelector('#mn-log')
             };
 
@@ -1558,7 +1750,7 @@ const APPS = {
                     }
                     const h = Array.from({length: 64}, () => '0123456789abcdef'[Math.floor(Math.random()*16)]).join('');
                     els.hash.textContent = h;
-                }, 80);
+                }, Math.max(30, 80 / SystemState.getSpeedMultiplier('gpu')));
 
                 const statsInterval = setInterval(() => {
                     if (!running) return;
@@ -1571,14 +1763,46 @@ const APPS = {
                     if (Math.random() > 0.25) { accepted++; addLog(`Share accepted! (#${accepted})`); }
                     else rejected++;
                     els.shares.textContent = `${accepted} / ${rejected}`;
-                    // sync GPU/CPU values from SystemState (which is boosted while miner runs)
-                    const gpuPct = Math.round(SystemState.gpu);
-                    const cpuPct = Math.round(SystemState.cpu);
+
+                    // Update system metrics (same as monitor)
+                    const runningApps = {};
+                    document.querySelectorAll('.window').forEach(win => {
+                        const appName = win.dataset.app;
+                        if (appName && SystemState.baseUsage[appName]) {
+                            runningApps[appName] = (runningApps[appName] || 0) + 1;
+                        }
+                    });
+                    const totalUsage = { cpu: 0, ram: 0, gpu: 0, diskio: 0 };
+                    Object.entries(runningApps).forEach(([appName, count]) => {
+                        const base = SystemState.baseUsage[appName];
+                        if (base) {
+                            totalUsage.cpu += base.cpu * count;
+                            totalUsage.ram += base.ram * count;
+                            totalUsage.gpu += base.gpu * count;
+                            totalUsage.diskio += base.diskio * count;
+                        }
+                    });
+                    totalUsage.cpu += 0.5;
+                    totalUsage.ram += 0.3;
+
+                    // Calculate percentages
+                    const cpuPct = Math.round(SystemState.getPercentage('cpu', totalUsage.cpu));
+                    const ramPct = Math.round(SystemState.getPercentage('ram', totalUsage.ram));
+                    const gpuPct = Math.round(SystemState.getPercentage('gpu', totalUsage.gpu));
+                    const diskPct = Math.round(SystemState.getPercentage('diskio', totalUsage.diskio));
+
+                    // Update hardware bars with calculated percentages
                     els.gpu.style.width = gpuPct + '%';
                     els.cpu.style.width = cpuPct + '%';
                     els.temp.textContent  = (55 + gpuPct * 0.45).toFixed(0) + '°C';
                     els.ctemp.textContent = (40 + cpuPct * 0.35).toFixed(0) + '°C';
-                }, 1200);
+
+                    // Update system metrics display
+                    els.sysCpu.textContent = cpuPct + '%';
+                    els.sysRam.textContent = ramPct + '%';
+                    els.sysGpu.textContent = gpuPct + '%';
+                    els.sysDisk.textContent = diskPct + '%';
+                }, Math.max(400, 1200 / SystemState.getSpeedMultiplier('cpu')));
 
                 intervals = [hashInterval, statsInterval];
             };
@@ -1678,6 +1902,7 @@ const APPS = {
             const statusEl = container.querySelector('#cr-status');
             const results = container.querySelector('#cr-results');
             const startBtn = container.querySelector('#cr-start');
+            const speedMultiplier = SystemState.getSpeedMultiplier('cpu');
 
             // EFFECT: floating password attempts drift across whole screen
             let crackerFloatInterval = null;
@@ -1703,7 +1928,7 @@ const APPS = {
                     `;
                     document.body.appendChild(tag);
                     setTimeout(() => tag.remove(), 1400);
-                }, 120);
+                }, Math.max(50, 120 / speedMultiplier));
                 startBtn.textContent = '⏳ BREACHING...';
                 startBtn.style.background = 'rgba(255,200,0,0.15)';
                 statusEl.textContent = 'ACTIVE';
@@ -1759,7 +1984,7 @@ const APPS = {
                         statusEl.textContent = 'DONE';
                         statusEl.style.color = 'var(--primary)';
                     }
-                }, 100);
+                }, Math.max(30, 100 / speedMultiplier));
 
                 container.cleanup = () => { clearInterval(interval); if (crackerFloatInterval) clearInterval(crackerFloatInterval); document.querySelectorAll('.cracker-float-word').forEach(t=>t.remove()); };
             });
