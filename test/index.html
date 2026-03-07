@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Advanced Hacker OS with integrated TyperScene - Cinematic code typing simulation">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <title>CYBER NEXUS OS v3.0</title>
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Google Analytics via Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+        import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAYbaVCWzkkfEaEZyEBsdEvb6mL6JxgCsM",
+            authDomain: "fakehacker-prank.firebaseapp.com",
+            projectId: "fakehacker-prank",
+            storageBucket: "fakehacker-prank.firebasestorage.app",
+            messagingSenderId: "351461029122",
+            appId: "1:351461029122:web:877686697ed86eba19be1b",
+            measurementId: "G-KQ901LJ4J1"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+
+        // Track page view
+        logEvent(analytics, 'page_view');
+
+        // Expose analytics globally so script.js can use it
+        window._analytics = analytics;
+        window._logEvent = logEvent;
+    </script>
+</head>
+<body>
+    <!-- Boot Screen -->
+    <div class="boot-screen" id="boot-screen" role="alert" aria-live="polite"></div>
+
+    <!-- CRT Overlay -->
+    <div class="crt-overlay" aria-hidden="true"></div>
+
+    <!-- Custom Cursor -->
+    <div class="cursor" id="cursor" aria-hidden="true"></div>
+
+    <!-- Desktop -->
+    <div class="desktop" id="desktop" role="main"></div>
+
+    <!-- Taskbar -->
+    <div class="taskbar" id="taskbar" role="toolbar" aria-label="Application Launcher">
+        <button class="app-icon" data-app="typerscene" aria-label="Open TyperScene">
+            <svg viewBox="0 0 24 24">
+                <path d="M4 4h16v16H4V4zm2 4v8h12V8H6zm2 2h8v2H8v-2z"/>
+            </svg>
+            <span class="app-label">TYPER</span>
+        </button>
+
+        <button class="app-icon" data-app="network" aria-label="Open Network Map">
+            <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/>
+                <circle cx="12" cy="12" r="3"/>
+            </svg>
+            <span class="app-label">NETWORK</span>
+        </button>
+
+        <button class="app-icon" data-app="radar" aria-label="Open Radar">
+            <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 2 L12 12"/>
+            </svg>
+            <span class="app-label">RADAR</span>
+        </button>
+
+        <button class="app-icon" data-app="stats" aria-label="Open Statistics">
+            <svg viewBox="0 0 24 24">
+                <rect x="4" y="14" width="4" height="6"/>
+                <rect x="10" y="8" width="4" height="12"/>
+                <rect x="16" y="11" width="4" height="9"/>
+            </svg>
+            <span class="app-label">STATS</span>
+        </button>
+
+        <button class="app-icon" data-app="monitor" aria-label="Open System Monitor">
+            <svg viewBox="0 0 24 24">
+                <rect x="2" y="3" width="20" height="14" rx="2"/>
+                <path d="M8 21h8M12 17v4"/>
+            </svg>
+            <span class="app-label">SYSTEM</span>
+        </button>
+
+        <button class="app-icon" data-app="matrix" aria-label="Open Matrix Stream">
+            <svg viewBox="0 0 24 24">
+                <path d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+            <span class="app-label">MATRIX</span>
+        </button>
+
+        <button class="app-icon" data-app="globe" aria-label="Open Global Tracking">
+            <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M2 12h20M12 2a10 10 0 0 0 0 20M12 2a10 10 0 0 1 0 20"/>
+            </svg>
+            <span class="app-label">GLOBE</span>
+        </button>
+
+        <button class="app-icon" data-app="terminal" aria-label="Open Terminal">
+            <svg viewBox="0 0 24 24">
+                <path d="M4 4h16v16H4V4zm2 4v8h12V8H6zm2 2h8v2H8v-2z"/>
+            </svg>
+            <span class="app-label">TERMINAL</span>
+        </button>
+
+        <button class="app-icon" data-app="firewall" aria-label="Open Firewall">
+            <svg viewBox="0 0 24 24">
+                <path d="M12 2L4 6v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V6l-8-4z"/>
+            </svg>
+            <span class="app-label">FIREWALL</span>
+        </button>
+
+        <div style="flex-grow: 1;"></div>
+        <time class="clock" id="clock" aria-live="polite">00:00:00</time>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
