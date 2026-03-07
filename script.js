@@ -134,6 +134,13 @@ int main() {
         },
         chunkSpeed: 1,
         cursorBlinkSpeed: 1000
+    },
+    settings: {
+        ram: 16, // GB
+        cpuModel: 'Intel Core i7-9700K',
+        gpuModel: 'NVIDIA RTX 3080',
+        storage: 512, // GB
+        storageType: 'SSD'
     }
 };
 
@@ -981,6 +988,13 @@ const APPS = {
         render: (container) => {
             SystemState.setBoost('monitor', { cpu: [2, 8], ram: [2, 7] });
             container.className = 'system-monitor';
+
+            // Specs row at top
+            const specsRow = Utils.createElement('div', 'monitor-specs-row');
+            specsRow.id = 'monitor-specs';
+            specsRow.textContent = `CPU: ${CONFIG.settings.cpuModel} | RAM: ${CONFIG.settings.ram}GB | GPU: ${CONFIG.settings.gpuModel} | Storage: ${CONFIG.settings.storage}GB ${CONFIG.settings.storageType}`;
+            container.appendChild(specsRow);
+
             const metrics = [
                 { key: 'cpu',       label: 'CPU'       },
                 { key: 'ram',       label: 'RAM'       },
@@ -1750,6 +1764,101 @@ const APPS = {
                 container.cleanup = () => { clearInterval(interval); if (crackerFloatInterval) clearInterval(crackerFloatInterval); document.querySelectorAll('.cracker-float-word').forEach(t=>t.remove()); };
             });
         }
+    },
+
+    settings: {
+        title: '⚙️ SETTINGS',
+        render: (container) => {
+            container.className = 'settings-container';
+            container.innerHTML = `
+                <div class="settings-section">
+                    <h3>Computer Specifications</h3>
+                    <div class="setting-item">
+                        <label for="ram-select">RAM (GB):</label>
+                        <select id="ram-select">
+                            <option value="4">4GB</option>
+                            <option value="8">8GB</option>
+                            <option value="16" selected>16GB</option>
+                            <option value="32">32GB</option>
+                            <option value="64">64GB</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label for="cpu-select">CPU Model:</label>
+                        <select id="cpu-select">
+                            <option value="Intel Core i3">Intel Core i3</option>
+                            <option value="Intel Core i5">Intel Core i5</option>
+                            <option value="Intel Core i7-9700K" selected>Intel Core i7-9700K</option>
+                            <option value="Intel Core i9">Intel Core i9</option>
+                            <option value="AMD Ryzen 5">AMD Ryzen 5</option>
+                            <option value="AMD Ryzen 7">AMD Ryzen 7</option>
+                            <option value="AMD Ryzen 9">AMD Ryzen 9</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label for="gpu-select">GPU Model:</label>
+                        <select id="gpu-select">
+                            <option value="Integrated">Integrated Graphics</option>
+                            <option value="NVIDIA GTX 1650">NVIDIA GTX 1650</option>
+                            <option value="NVIDIA RTX 3080" selected>NVIDIA RTX 3080</option>
+                            <option value="AMD Radeon RX 580">AMD Radeon RX 580</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label for="storage-select">Storage (GB):</label>
+                        <select id="storage-select">
+                            <option value="256">256GB</option>
+                            <option value="512" selected>512GB</option>
+                            <option value="1024">1TB</option>
+                            <option value="2048">2TB</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label for="storage-type-select">Storage Type:</label>
+                        <select id="storage-type-select">
+                            <option value="HDD">HDD</option>
+                            <option value="SSD" selected>SSD</option>
+                        </select>
+                    </div>
+                    <button id="save-settings" class="settings-save-btn">Save Settings</button>
+                </div>
+            `;
+
+            // Set current values
+            container.querySelector('#ram-select').value = CONFIG.settings.ram;
+            container.querySelector('#cpu-select').value = CONFIG.settings.cpuModel;
+            container.querySelector('#gpu-select').value = CONFIG.settings.gpuModel;
+            container.querySelector('#storage-select').value = CONFIG.settings.storage;
+            container.querySelector('#storage-type-select').value = CONFIG.settings.storageType;
+
+            container.querySelector('#save-settings').addEventListener('click', () => {
+                CONFIG.settings.ram = parseInt(container.querySelector('#ram-select').value);
+                CONFIG.settings.cpuModel = container.querySelector('#cpu-select').value;
+                CONFIG.settings.gpuModel = container.querySelector('#gpu-select').value;
+                CONFIG.settings.storage = parseInt(container.querySelector('#storage-select').value);
+                CONFIG.settings.storageType = container.querySelector('#storage-type-select').value;
+                // Save to localStorage
+                localStorage.setItem('nexus_settings', JSON.stringify(CONFIG.settings));
+                // Show confirmation
+                showSecretOverlay('overlay-accepted', `
+                    <div class="so-big-icon">✅</div>
+                    <div class="so-title">SETTINGS SAVED</div>
+                    <div class="so-sub">Configuration updated successfully</div>
+                    <div class="so-code">RESTARTING SYSTEM...</div>
+                `, 2000);
+                // Refresh monitor if open
+                const monitorWin = document.querySelector('.window[data-app="monitor"]');
+                if (monitorWin) {
+                    // Trigger update
+                    setTimeout(() => {
+                        const specsEl = monitorWin.querySelector('#monitor-specs');
+                        if (specsEl) {
+                            specsEl.textContent = `CPU: ${CONFIG.settings.cpuModel} | RAM: ${CONFIG.settings.ram}GB | GPU: ${CONFIG.settings.gpuModel} | Storage: ${CONFIG.settings.storage}GB ${CONFIG.settings.storageType}`;
+                        }
+                    }, 100);
+                }
+            });
+        }
     }
 };
 
@@ -1795,6 +1904,12 @@ class CyberNexusOS {
     async init() {
         const boot = new BootSequence();
         await boot.start();
+
+        // Load saved settings
+        const savedSettings = localStorage.getItem('nexus_settings');
+        if (savedSettings) {
+            Object.assign(CONFIG.settings, JSON.parse(savedSettings));
+        }
 
         this.setupTaskbar();
         this.setupCursor();
@@ -1854,8 +1969,15 @@ class CyberNexusOS {
             // Prevent browser from hijacking Alt key (menu bar focus, etc.)
             if (e.key === 'Alt') e.preventDefault();
 
-            // Feed all keys to shortcut manager (pass full event for repeat + code checks)
-            ShortcutManager.handleKey(e);
+            // Ctrl+Shift+Alt to open settings
+            if (e.ctrlKey && e.shiftKey && e.altKey) {
+                e.preventDefault();
+                const appConfig = APPS['settings'];
+                this.windowManager.create('settings', appConfig);
+                const icon = document.querySelector(`[data-app="settings"]`);
+                if (icon) icon.classList.add('active');
+                return;
+            }
 
             // Alt + number to open apps
             if (e.altKey && e.key >= '1' && e.key <= '9') {
