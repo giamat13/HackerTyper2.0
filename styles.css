@@ -538,3 +538,20 @@ body {
 .miner-active-taskbar {
     animation: minerTaskbarGlow 1.5s ease-in-out infinite !important;
 }
+
+/* ==================== THROTTLE SYSTEM ==================== */
+@keyframes throttleFlicker {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+}
+
+.monitor-throttle-row {
+    margin-top: 12px;
+    padding: 6px 10px;
+    border: 1px solid currentColor;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-align: center;
+    border-radius: 2px;
+    background: rgba(0,0,0,0.4);
+}

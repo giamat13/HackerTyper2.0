@@ -381,15 +381,21 @@ class TyperScene {
     start() {
         if (this.isTyping) return;
         this.isTyping = true;
+        SystemState.setBoost('typerscene', { cpu: [15, 32], ram: [10, 24], diskio: [5, 16] });
         this.typingInterval = setInterval(() => {
-            this.typeChunk();
-            if (this.pointer >= this.rawText.length) this.stop();
+            const t = SystemState.getThrottle(['cpu','ram']);
+            if (Math.random() < t) {
+                this.typeChunk();
+                if (this.pointer >= this.rawText.length) this.stop();
+            }
         }, 50);
     }
 
     stop() {
         this.isTyping = false;
         if (this.typingInterval) { clearInterval(this.typingInterval); this.typingInterval = null; }
+        // idle when not typing
+        SystemState.setBoost('typerscene', { cpu: [1, 4], ram: [1, 3] });
     }
 
     reset() {
@@ -776,38 +782,72 @@ class TutorialManager {
 // ==================== SYSTEM STATE ====================
 // Shared live state — read by System Monitor, written by Miner & window count
 const SystemState = {
-    cpu: 12,
-    ram: 28,
-    gpu: 5,
-    network: 8,
-    diskio: 10,
-    bandwidth: 15,
+    cpu: 12, ram: 28, gpu: 5, network: 8, diskio: 10, bandwidth: 15,
     minerRunning: false,
-    minerHashrate: 0,
-    minerTemp: 0,
-    minerCpuTemp: 0,
 
-    // called every second to drift values naturally
+    // throttle[resource] = 0..1 multiplier — 1 = full speed, 0 = stopped
+    // apps read this to slow their intervals
+    throttle: { cpu:1, ram:1, gpu:1, network:1, diskio:1, bandwidth:1 },
+
+    // boosts: { appName: { resource: [min, max] } }
+    _boosts: {},
+
+    setBoost(appName, boost) { this._boosts[appName] = boost; },
+    clearBoost(appName)      { delete this._boosts[appName]; },
+
+    // Return randomized sum of all active boosts this tick
+    _sumBoosts() {
+        const sum = { cpu:0, ram:0, gpu:0, network:0, diskio:0, bandwidth:0 };
+        Object.values(this._boosts).forEach(b => {
+            for (const k of Object.keys(sum)) {
+                if (!b[k]) continue;
+                const v = b[k];
+                sum[k] += Array.isArray(v)
+                    ? v[0] + Math.random() * (v[1] - v[0])
+                    : v;
+            }
+        });
+        return sum;
+    },
+
+    // Returns a 0..1 speed multiplier for an app based on which resources it uses.
+    // Pass the array of resource keys this app depends on.
+    // The more saturated those resources, the lower the returned value.
+    getThrottle(resources) {
+        if (!resources || resources.length === 0) return 1;
+        const worst = Math.min(...resources.map(r => this.throttle[r] ?? 1));
+        return worst;
+    },
+
     tick() {
         const openWindows = document.querySelectorAll('.window').length;
-        const baseLoad = 8 + openWindows * 5;          // each open window costs ~5%
+        const baseLoad = 6 + openWindows * 2;
 
         const drift = (val, base, variance, min, max) => {
             let next = val + (Math.random() - 0.48) * variance;
-            // pull toward base load slowly
-            next += (base - next) * 0.05;
+            next += (base - next) * 0.08;
             return Math.max(min, Math.min(max, next));
         };
 
-        const minerBoost = this.minerRunning ? 38 : 0;
-        const gpuBoost   = this.minerRunning ? 55 : 0;
+        const b = this._sumBoosts();
 
-        this.cpu       = drift(this.cpu,       baseLoad + minerBoost, 4, 2, 99);
-        this.ram       = drift(this.ram,       baseLoad * 1.5,        3, 5, 95);
-        this.gpu       = drift(this.gpu,       baseLoad * 0.6 + gpuBoost, 5, 2, 99);
-        this.network   = drift(this.network,   baseLoad * 0.8,        6, 1, 99);
-        this.diskio    = drift(this.diskio,    baseLoad * 0.4,        4, 1, 99);
-        this.bandwidth = drift(this.bandwidth, baseLoad * 0.7,        5, 1, 99);
+        this.cpu       = drift(this.cpu,       baseLoad + b.cpu,            4, 2, 99);
+        this.ram       = drift(this.ram,       baseLoad * 1.2 + b.ram,      3, 5, 99);
+        this.gpu       = drift(this.gpu,       baseLoad * 0.5 + b.gpu,      5, 2, 99);
+        this.network   = drift(this.network,   baseLoad * 0.6 + b.network,  6, 1, 99);
+        this.diskio    = drift(this.diskio,    baseLoad * 0.3 + b.diskio,   4, 1, 99);
+        this.bandwidth = drift(this.bandwidth, baseLoad * 0.5 + b.bandwidth,5, 1, 99);
+
+        // Update throttle factors.
+        // Below 85%: no slowdown. 85-99%: gradual. 99-100%: severe.
+        const slowdown = (v) => {
+            if (v < 85) return 1;
+            if (v < 99) return 1 - (v - 85) / 14 * 0.6;   // 1.0 → 0.4
+            return 0.15 + Math.random() * 0.1;              // 0.15-0.25 at max
+        };
+        for (const k of Object.keys(this.throttle)) {
+            this.throttle[k] = slowdown(this[k]);
+        }
     }
 };
 setInterval(() => SystemState.tick(), 1000);
@@ -816,7 +856,30 @@ setInterval(() => SystemState.tick(), 1000);
 const APPS = {
     typerscene: {
         title: '⌨️ TYPERSCENE',
-        render: (container) => { new TyperScene(container); }
+        render: (container) => {
+            SystemState.setBoost('typerscene', { cpu: [10, 28], ram: [8, 20], diskio: [4, 14] });
+            new TyperScene(container);
+            const tsCleanup = container.cleanup;
+            const glitchChars = '█▓▒░╬╪╩╦╠═╣║╗╔╝╚';
+            // EFFECT: while typing, corrupt other windows' title text momentarily
+            const glitchInterval = setInterval(() => {
+                document.querySelectorAll('.window-title').forEach(title => {
+                    if (title.closest('.window')?.contains(container)) return;
+                    if (Math.random() > 0.3) return;
+                    const orig = title.dataset.origTitle || title.textContent;
+                    title.dataset.origTitle = orig;
+                    const pos = Math.floor(Math.random() * orig.length);
+                    const gc = glitchChars[Math.floor(Math.random() * glitchChars.length)];
+                    title.textContent = orig.slice(0, pos) + gc + orig.slice(pos + 1);
+                    setTimeout(() => { title.textContent = title.dataset.origTitle; }, 180);
+                });
+            }, 500);
+            container.cleanup = () => {
+                SystemState.clearBoost('typerscene');
+                clearInterval(glitchInterval);
+                if (tsCleanup) tsCleanup();
+            };
+        }
     },
 
     network: {
@@ -848,6 +911,57 @@ const APPS = {
                 line.style.animationDelay = (i * 0.3) + 's';
                 container.appendChild(line);
             }
+
+            // EFFECT: draw SVG cables from THIS window to every other open window
+            const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+            svg.id = 'network-cables';
+            svg.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9995;';
+            document.body.appendChild(svg);
+
+            const updateCables = () => {
+                svg.innerHTML = '';
+                const src = container.closest('.window');
+                if (!src) return;
+                const sr = src.getBoundingClientRect();
+                const sx = sr.left + sr.width / 2, sy = sr.top + sr.height / 2;
+                document.querySelectorAll('.window').forEach(win => {
+                    if (win === src) return;
+                    const wr = win.getBoundingClientRect();
+                    const tx = wr.left + wr.width / 2, ty = wr.top + wr.height / 2;
+                    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
+                    line.setAttribute('x1', sx); line.setAttribute('y1', sy);
+                    line.setAttribute('x2', tx); line.setAttribute('y2', ty);
+                    line.setAttribute('stroke', 'rgba(0,255,255,0.35)');
+                    line.setAttribute('stroke-width', '1.5');
+                    line.setAttribute('stroke-dasharray', '6,4');
+                    line.setAttribute('class', 'net-cable-line');
+                    svg.appendChild(line);
+                    // animated packet dot
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
+                    circle.setAttribute('r','4');
+                    circle.setAttribute('fill','#0ff');
+                    circle.setAttribute('filter','url(#cable-glow)');
+                    const anim = document.createElementNS('http://www.w3.org/2000/svg','animateMotion');
+                    anim.setAttribute('dur', (1.5 + Math.random()*2) + 's');
+                    anim.setAttribute('repeatCount','indefinite');
+                    anim.setAttribute('path', `M${sx},${sy} L${tx},${ty}`);
+                    circle.appendChild(anim);
+                    svg.appendChild(circle);
+                });
+                // glow filter
+                const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+                defs.innerHTML = `<filter id="cable-glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
+                svg.prepend(defs);
+            };
+            updateCables();
+            let cableDelay = 2000;
+            const cableInterval = setInterval(() => {
+                const t = SystemState.getThrottle(['network','bandwidth']);
+                // fewer cable updates when network saturated
+                if (Math.random() < t) updateCables();
+            }, 2000);
+            SystemState.setBoost('network', { network: [30, 60], bandwidth: [40, 70], cpu: [4, 14] });
+            container.cleanup = () => { clearInterval(cableInterval); svg.remove(); SystemState.clearBoost('network'); };
         }
     },
 
@@ -867,6 +981,34 @@ const APPS = {
                 radar.appendChild(blip);
             }
             container.appendChild(radar);
+
+            // EFFECT: global rotating sweep beam over entire screen
+            const sweep = document.createElement('div');
+            sweep.id = 'radar-global-sweep';
+            sweep.style.cssText = `
+                position:fixed; inset:0; pointer-events:none; z-index:9994;
+                background: conic-gradient(from 0deg, transparent 340deg, rgba(0,255,0,0.12) 355deg, rgba(0,255,0,0.04) 360deg);
+                animation: radarGlobalSpin 4s linear infinite;
+            `;
+            document.body.appendChild(sweep);
+
+            // warning labels that appear on other windows when sweep passes over them
+            let angle = 0;
+            const scanInterval = setInterval(() => {
+                angle = (angle + 15) % 360;
+                if (angle % 90 < 15) {
+                    document.querySelectorAll('.window').forEach(win => {
+                        if (win.contains(container)) return;
+                        const badge = document.createElement('div');
+                        badge.className = 'radar-scan-badge';
+                        badge.textContent = '◉ SCANNING...';
+                        win.appendChild(badge);
+                        setTimeout(() => badge.remove(), 900);
+                    });
+                }
+            }, 200);
+            SystemState.setBoost('radar', { network: [15, 40], cpu: [14, 32], gpu: [5, 18] });
+            container.cleanup = () => { clearInterval(scanInterval); sweep.remove(); document.querySelectorAll('.radar-scan-badge').forEach(b=>b.remove()); SystemState.clearBoost('radar'); };
         }
     },
 
@@ -883,12 +1025,30 @@ const APPS = {
                 chart.appendChild(bar);
             });
             container.appendChild(chart);
+
+            // EFFECT: mini bar chart overlays pulse at bottom of other windows
+            const statsInterval = setInterval(() => {
+                document.querySelectorAll('.window').forEach(win => {
+                    if (win.contains(container)) return;
+                    if (win.querySelector('.stats-mini-overlay')) return;
+                    const overlay = document.createElement('div');
+                    overlay.className = 'stats-mini-overlay';
+                    overlay.innerHTML = Array.from({length:8}, () =>
+                        `<div style="height:${20+Math.random()*70}%;background:rgba(0,255,0,0.7)"></div>`
+                    ).join('');
+                    win.appendChild(overlay);
+                    setTimeout(() => overlay.remove(), 1800);
+                });
+            }, 3000);
+            SystemState.setBoost('stats', { cpu: [18, 42], ram: [15, 35], diskio: [8, 22] });
+            container.cleanup = () => { clearInterval(statsInterval); document.querySelectorAll('.stats-mini-overlay').forEach(e=>e.remove()); SystemState.clearBoost('stats'); };
         }
     },
 
     monitor: {
         title: '💻 SYSTEM MONITOR',
         render: (container) => {
+            SystemState.setBoost('monitor', { cpu: [2, 8], ram: [2, 7] });
             container.className = 'system-monitor';
             const metrics = [
                 { key: 'cpu',       label: 'CPU'       },
@@ -911,6 +1071,11 @@ const APPS = {
                 container.appendChild(row);
             });
 
+            // Throttle status row at bottom
+            const throttleRow = Utils.createElement('div', 'monitor-throttle-row');
+            throttleRow.id = 'mon-throttle';
+            container.appendChild(throttleRow);
+
             const updateInterval = setInterval(() => {
                 metrics.forEach(m => {
                     const v = Math.round(SystemState[m.key]);
@@ -919,17 +1084,58 @@ const APPS = {
                     if (fill) fill.style.width = v + '%';
                     if (val)  val.textContent  = v + '%';
 
-                    // colour the bar by load level
                     if (fill) {
-                        fill.style.background =
-                            v > 80 ? 'var(--danger)' :
-                            v > 55 ? 'var(--warning)' :
-                            'var(--primary)';
+                        if (v >= 99) {
+                            fill.style.background = 'var(--danger)';
+                            fill.style.animation = 'throttleFlicker 0.3s ease infinite';
+                        } else if (v > 80) {
+                            fill.style.background = 'var(--danger)';
+                            fill.style.animation = '';
+                        } else if (v > 55) {
+                            fill.style.background = 'var(--warning)';
+                            fill.style.animation = '';
+                        } else {
+                            fill.style.background = 'var(--primary)';
+                            fill.style.animation = '';
+                        }
                     }
                 });
+
+                // Throttle status summary
+                const tr = document.getElementById('mon-throttle');
+                if (tr) {
+                    const saturated = metrics.filter(m => SystemState[m.key] >= 95);
+                    if (saturated.length > 0) {
+                        tr.innerHTML = `⚠ THROTTLING: ${saturated.map(m => m.label).join(', ')} — APPS SLOWED`;
+                        tr.style.color = 'var(--danger)';
+                        tr.style.animation = 'throttleFlicker 0.5s ease infinite';
+                    } else {
+                        const high = metrics.filter(m => SystemState[m.key] >= 80);
+                        if (high.length > 0) {
+                            tr.innerHTML = `⚡ HIGH LOAD: ${high.map(m => m.label).join(', ')}`;
+                            tr.style.color = 'var(--warning)';
+                            tr.style.animation = '';
+                        } else {
+                            tr.innerHTML = '✓ ALL SYSTEMS NOMINAL';
+                            tr.style.color = 'var(--primary)';
+                            tr.style.animation = '';
+                        }
+                    }
+                }
             }, 1000);
 
-            container.cleanup = () => clearInterval(updateInterval);
+            // EFFECT: desktop background hue shifts based on CPU load
+            const desktop = document.getElementById('desktop');
+            const origBg = desktop.style.background || '';
+            const bgInterval = setInterval(() => {
+                const cpu = Math.round(SystemState.cpu);
+                let color;
+                if (cpu > 80)      color = `radial-gradient(circle at center, rgba(80,0,0,0.6) 0%, #000 120%)`;
+                else if (cpu > 55) color = `radial-gradient(circle at center, rgba(50,40,0,0.5) 0%, #000 120%)`;
+                else               color = `radial-gradient(circle at center, #1a2c1a 0%, #000 120%)`;
+                desktop.style.background = color;
+            }, 1200);
+            container.cleanup = () => { clearInterval(updateInterval); clearInterval(bgInterval); desktop.style.background = origBg; };
         }
     },
 
@@ -937,15 +1143,18 @@ const APPS = {
         title: '🔢 MATRIX STREAM',
         render: (container) => {
             container.className = 'matrix-display';
+            SystemState.setBoost('matrix', { cpu: [20, 50], gpu: [30, 60], ram: [12, 28] });
             const chars = '01アイウエオカキクケコ';
 
             // Internal stream inside the window
             const internalInterval = setInterval(() => {
+                const t = SystemState.getThrottle(['cpu','gpu']);
+                if (Math.random() > t) return;   // drop frames when overloaded
                 if (container.children.length > 100) return;
                 const char = Utils.createElement('div', 'matrix-char');
                 char.textContent = chars[Math.floor(Math.random() * chars.length)];
                 char.style.left = Math.random() * 100 + '%';
-                char.style.animationDuration = (Math.random() * 3 + 2) + 's';
+                char.style.animationDuration = (Math.random() * 3 + 2) / Math.max(t, 0.15) + 's';
                 container.appendChild(char);
                 setTimeout(() => char.remove(), 5000);
             }, 200);
@@ -965,18 +1174,21 @@ const APPS = {
             leakLayer._refCount = (leakLayer._refCount || 0) + 1;
 
             const leakInterval = setInterval(() => {
+                const t = SystemState.getThrottle(['cpu','gpu']);
+                if (Math.random() > t) return;
                 if (leakLayer.children.length > 60) return;
                 const ch = document.createElement('div');
                 ch.textContent = chars[Math.floor(Math.random() * chars.length)];
+                const dur = (2 + Math.random() * 4) / Math.max(t, 0.15);
                 ch.style.cssText = `
                     position:absolute;
                     left:${Math.random() * 100}vw;
                     top:-20px;
-                    color:rgba(0,255,0,0.55);
+                    color:rgba(0,255,0,${0.3 + t * 0.4});
                     font-family:var(--font-mono);
                     font-size:${10 + Math.random() * 14}px;
                     text-shadow:0 0 6px #0f0;
-                    animation:matrixLeakFall ${2 + Math.random() * 4}s linear forwards;
+                    animation:matrixLeakFall ${dur}s linear forwards;
                     pointer-events:none;
                 `;
                 leakLayer.appendChild(ch);
@@ -988,6 +1200,7 @@ const APPS = {
                 clearInterval(leakInterval);
                 leakLayer._refCount--;
                 if (leakLayer._refCount <= 0) leakLayer.remove();
+                SystemState.clearBoost('matrix');
             };
         }
     },
@@ -995,6 +1208,8 @@ const APPS = {
     globe: {
         title: '🌍 GLOBAL TRACKING',
         render: (container) => {
+            SystemState.setBoost('globe', { gpu: [40, 75], network: [20, 50], bandwidth: [18, 42] });
+            container.cleanup = () => SystemState.clearBoost('globe');
             container.className = 'globe-container';
             const globe = Utils.createElement('div', 'globe');
             for (let i = 0; i < 5; i++) {
@@ -1010,12 +1225,39 @@ const APPS = {
                 globe.appendChild(marker);
             }
             container.appendChild(globe);
+
+            // EFFECT: floating coordinate/IP tags drift across desktop
+            const cities = ['MOSCOW','BEIJING','TOKYO','LONDON','DUBAI','BERLIN','SYDNEY','CAIRO','PARIS','SEOUL'];
+            const globeInterval = setInterval(() => {
+                const tag = document.createElement('div');
+                const lat = (Math.random()*170-85).toFixed(2);
+                const lon = (Math.random()*360-180).toFixed(2);
+                const city = cities[Math.floor(Math.random()*cities.length)];
+                const ip = `${Utils.random(1,254)}.${Utils.random(0,255)}.${Utils.random(0,255)}.${Utils.random(1,254)}`;
+                tag.className = 'globe-float-tag';
+                tag.innerHTML = `📍 ${city} [${lat}°, ${lon}°] — ${ip}`;
+                tag.style.cssText = `
+                    position:fixed;
+                    left:${Math.random()*75+5}vw;
+                    top:${Math.random()*70+5}vh;
+                    color:rgba(0,255,255,0.75);
+                    font-family:var(--font-mono);font-size:11px;
+                    text-shadow:0 0 8px #0ff;
+                    pointer-events:none;z-index:9993;
+                    animation:globeTagFade 3s ease forwards;
+                    white-space:nowrap;
+                `;
+                document.body.appendChild(tag);
+                setTimeout(() => tag.remove(), 3000);
+            }, 1000);
+            container.cleanup = () => { clearInterval(globeInterval); document.querySelectorAll('.globe-float-tag').forEach(t=>t.remove()); };
         }
     },
 
     terminal: {
         title: '💻 TERMINAL',
         render: (container) => {
+            SystemState.setBoost('terminal', { cpu: [5, 16], diskio: [15, 38], ram: [4, 14] });
             container.className = 'terminal-container';
             const content = Utils.createElement('div', 'terminal-content');
             content.id = 'terminal-content';
@@ -1023,16 +1265,45 @@ const APPS = {
             const code = `$ sudo systemctl start cyber-nexus\n[OK] Starting Cyber Nexus System...\n[OK] Loaded kernel modules\n[OK] Network interface initialized\n[OK] Security protocols active\n\n$ cat /proc/sys/net\nIPv4: 192.168.1.100\nIPv6: fe80::1\nGateway: 192.168.1.1\nDNS: 8.8.8.8\n\n$ ps aux | grep cyber\nroot  1234  0.5  2.1  System Core\nroot  1235  0.3  1.8  Network Monitor\nroot  1236  0.1  0.9  Security Daemon\n\n$ █`;
             let index = 0;
             const typeInterval = setInterval(() => {
-                if (index < code.length) { content.textContent += code[index]; index++; container.scrollTop = container.scrollHeight; }
-                else clearInterval(typeInterval);
+                const t = SystemState.getThrottle(['diskio','cpu']);
+                if (index < code.length && Math.random() < t) {
+                    content.textContent += code[index]; index++;
+                    container.scrollTop = container.scrollHeight;
+                } else if (index >= code.length) {
+                    clearInterval(typeInterval);
+                    // typing done — drop to near-idle
+                    SystemState.setBoost('terminal', { cpu: [1, 3], diskio: [1, 4] });
+                }
             }, 30);
-            container.cleanup = () => clearInterval(typeInterval);
+            // EFFECT: ghost commands flicker on desktop background
+            const termCmds = ["$ ssh root@10.0.0.1 -p 22", "$ nmap -sV --script vuln 192.168.1.0/24", "$ cat /etc/shadow", "$ sudo rm -rf /var/log/*", "$ tcpdump -i eth0 port 443", "$ netstat -tulpn | grep LISTEN", "$ curl -s https://api.darkweb.onion/data", "$ ./exploit.py --target 10.0.0.5 --payload shell", "$ openssl genrsa -out private.pem 4096", "$ iptables -F && iptables -X"];
+            const desktopEl = document.getElementById('desktop');
+            const ghostInterval = setInterval(() => {
+                if (Math.random() > 0.5) return;
+                const ghost = document.createElement('div');
+                ghost.className = 'terminal-ghost-cmd';
+                ghost.textContent = termCmds[Math.floor(Math.random()*termCmds.length)];
+                ghost.style.cssText = `
+                    position:absolute;
+                    left:${Math.random()*70+5}%;
+                    top:${Math.random()*75+5}%;
+                    color:rgba(0,255,0,0.2);
+                    font-family:var(--font-mono);font-size:12px;
+                    pointer-events:none;z-index:1;
+                    animation:termGhostFade 2.5s ease forwards;
+                    white-space:nowrap;
+                `;
+                desktopEl.appendChild(ghost);
+                setTimeout(() => ghost.remove(), 2500);
+            }, 900);
+            container.cleanup = () => { clearInterval(typeInterval); clearInterval(ghostInterval); document.querySelectorAll('.terminal-ghost-cmd').forEach(e=>e.remove()); };
         }
     },
 
     firewall: {
         title: '🛡️ FIREWALL STATUS',
         render: (container) => {
+            SystemState.setBoost('firewall', { network: [30, 68], cpu: [18, 48], bandwidth: [25, 55] });
             container.className = 'firewall-viz';
             for (let i = 0; i < 5; i++) {
                 const layer = Utils.createElement('div', 'firewall-layer');
@@ -1042,10 +1313,15 @@ const APPS = {
 
             let attackCount = 0;
             const particleInterval = setInterval(() => {
-                if (container.querySelectorAll('.attack-particle').length > 20) return;
+                const t = SystemState.getThrottle(['network','cpu']);
+                // when network saturated, MORE attacks flood through (inverse throttle for visual drama)
+                const floodFactor = 2 - t;  // 1 at normal, up to 2 when maxed
+                if (Math.random() > 0.4 * floodFactor) return;
+                if (container.querySelectorAll('.attack-particle').length > 30) return;
                 const particle = Utils.createElement('div', 'attack-particle');
                 particle.style.top = Math.random() * 100 + '%';
-                particle.style.animationDuration = (Math.random() * 2 + 1) + 's';
+                // saturated network = slower, more sluggish particles
+                particle.style.animationDuration = ((Math.random() * 2 + 1) / Math.max(t, 0.2)) + 's';
                 container.appendChild(particle);
                 setTimeout(() => particle.remove(), 3000);
 
@@ -1067,7 +1343,10 @@ const APPS = {
                     setTimeout(() => flash.remove(), 400);
                 }
             }, 500);
-            container.cleanup = () => clearInterval(particleInterval);
+            container.cleanup = () => {
+                clearInterval(particleInterval);
+                SystemState.clearBoost('firewall');
+            };
         }
     },
 
@@ -1075,6 +1354,9 @@ const APPS = {
     downloader: {
         title: '📥 FILE EXFILTRATION',
         render: (container) => {
+            // idle: listing files, no transfer yet
+            SystemState.setBoost('downloader', { network: [1, 5], cpu: [1, 3] });
+            let activeTransfers = 0;
             container.className = 'downloader-container';
             const files = [
                 { name: 'classified_docs_2024.zip', size: '847 MB', type: 'CLASSIFIED' },
@@ -1103,12 +1385,41 @@ const APPS = {
             const speedEl = container.querySelector('#dl-speed');
 
             const speedInterval = setInterval(() => {
-                speedEl.textContent = (Math.random() * 50 + 10).toFixed(1) + ' MB/s';
+                const t = SystemState.getThrottle(['bandwidth','network']);
+                speedEl.textContent = ((Math.random() * 50 + 10) * t).toFixed(1) + ' MB/s';
+                speedEl.style.color = t < 0.5 ? 'var(--danger)' : t < 0.8 ? 'var(--warning)' : '';
             }, 800);
-            container.cleanup = () => clearInterval(speedInterval);
+            // EFFECT: thin "scanning" bar crawls across top of each other window
+            const scanBars = new Map();
+            const dlScanInterval = setInterval(() => {
+                document.querySelectorAll('.window').forEach(win => {
+                    if (win.contains(container)) return;
+                    if (scanBars.has(win)) return;
+                    const bar = document.createElement('div');
+                    bar.className = 'dl-scan-bar';
+                    win.appendChild(bar);
+                    scanBars.set(win, bar);
+                    setTimeout(() => { bar.remove(); scanBars.delete(win); }, 3500);
+                });
+            }, 2500);
+            container.cleanup = () => {
+                clearInterval(speedInterval); clearInterval(dlScanInterval);
+                document.querySelectorAll('.dl-scan-bar').forEach(b=>b.remove());
+                SystemState.clearBoost('downloader');
+            };
 
             files.forEach((file, i) => {
                 setTimeout(() => {
+                    activeTransfers++;
+                    // scale boost with number of simultaneous transfers
+                    const perFile = { bandwidth: [6, 12], network: [5, 11], diskio: [4, 9], cpu: [1, 3] };
+                    const scale = (v) => [v[0] * activeTransfers, v[1] * activeTransfers];
+                    SystemState.setBoost('downloader', {
+                        bandwidth: scale(perFile.bandwidth),
+                        network:   scale(perFile.network),
+                        diskio:    scale(perFile.diskio),
+                        cpu:       scale(perFile.cpu),
+                    });
                     const row = document.createElement('div');
                     row.className = 'dl-file-row';
                     const typeClass = file.type.toLowerCase().replace(' ', '-');
@@ -1132,7 +1443,8 @@ const APPS = {
                     const status = row.querySelector(`#dls-${i}`);
 
                     const dlInterval = setInterval(() => {
-                        progress += Math.random() * 6 + 2;
+                        const t = SystemState.getThrottle(['bandwidth','network']);
+                        progress += (Math.random() * 6 + 2) * t;
                         if (progress >= 100) {
                             progress = 100;
                             fill.style.width = '100%';
@@ -1140,6 +1452,17 @@ const APPS = {
                             status.textContent = '✓ COMPLETE';
                             status.style.color = 'var(--primary)';
                             clearInterval(dlInterval);
+                            activeTransfers = Math.max(0, activeTransfers - 1);
+                            if (activeTransfers === 0) {
+                                SystemState.setBoost('downloader', { network: [1, 5], cpu: [1, 3] });
+                            } else {
+                                const perFile2 = { bandwidth: [6, 12], network: [5, 11], diskio: [4, 9], cpu: [1, 3] };
+                                const scale2 = (v) => [v[0] * activeTransfers, v[1] * activeTransfers];
+                                SystemState.setBoost('downloader', {
+                                    bandwidth: scale2(perFile2.bandwidth), network: scale2(perFile2.network),
+                                    diskio: scale2(perFile2.diskio), cpu: scale2(perFile2.cpu),
+                                });
+                            }
 
                             const entry = document.createElement('div');
                             entry.className = 'dl-log-entry';
@@ -1159,6 +1482,8 @@ const APPS = {
     malware: {
         title: '☣️ PAYLOAD DEPLOYER',
         render: (container) => {
+            // idle: scanning targets in background
+            SystemState.setBoost('malware', { network: [2, 8], cpu: [1, 4] });
             container.className = 'malware-container';
             const payloads = [
                 { name: 'Ransomware.v4.exe', type: 'RANSOMWARE', power: 95, color: '#f00' },
@@ -1226,6 +1551,9 @@ const APPS = {
             });
 
             deployBtn.addEventListener('click', () => {
+                // spike during active deployment, return to idle scan after
+                SystemState.setBoost('malware', { cpu: [45, 82], ram: [30, 58], network: [50, 85] });
+                setTimeout(() => SystemState.setBoost('malware', { network: [2, 8], cpu: [1, 4] }), 8000);
                 if (!selectedPayload) {
                     const e = document.createElement('div');
                     e.className = 'mw-log-entry error';
@@ -1250,6 +1578,23 @@ const APPS = {
                     delay += Utils.random(300, 700);
                 });
             });
+
+            // EFFECT: while deployed, other windows glitch with chromatic aberration
+            let glitchActive = false;
+            deployBtn.addEventListener('click', () => {
+                if (glitchActive) return;
+                glitchActive = true;
+                document.querySelectorAll('.window').forEach(win => {
+                    if (win.contains(container)) return;
+                    win.classList.add('malware-glitch');
+                    setTimeout(() => win.classList.remove('malware-glitch'), 4000);
+                });
+                setTimeout(() => { glitchActive = false; }, 5000);
+            });
+            container.cleanup = () => {
+                document.querySelectorAll('.malware-glitch').forEach(w=>w.classList.remove('malware-glitch'));
+                SystemState.clearBoost('malware');
+            };
         }
     },
 
@@ -1258,6 +1603,8 @@ const APPS = {
         title: '₿ CRYPTO MINER',
         render: (container) => {
             container.className = 'miner-container';
+            // idle: only pool connection overhead
+            SystemState.setBoost('miner', { network: [1, 4], cpu: [1, 3] });
             let btcMined = 0, running = false, intervals = [];
 
             container.innerHTML = `
@@ -1320,6 +1667,7 @@ const APPS = {
             const startMining = () => {
                 running = true;
                 SystemState.minerRunning = true;
+                SystemState.setBoost('miner', { cpu: [40, 68], gpu: [55, 82], ram: [16, 34], bandwidth: [8, 22] });
                 // Visual effect: tint clock & taskbar red while mining
                 const clock = document.getElementById('clock');
                 const taskbar = document.querySelector('.taskbar');
@@ -1330,15 +1678,27 @@ const APPS = {
 
                 const hashInterval = setInterval(() => {
                     if (!running) return;
+                    const t = SystemState.getThrottle(['cpu','gpu']);
+                    if (Math.random() > t) {
+                        // show corrupted/stuck hash when throttled
+                        const stuck = els.hash.textContent;
+                        if (stuck.length === 64) {
+                            const pos = Math.floor(Math.random()*64);
+                            els.hash.textContent = stuck.slice(0,pos)+'?'+stuck.slice(pos+1);
+                        }
+                        return;
+                    }
                     const h = Array.from({length: 64}, () => '0123456789abcdef'[Math.floor(Math.random()*16)]).join('');
                     els.hash.textContent = h;
                 }, 80);
 
                 const statsInterval = setInterval(() => {
                     if (!running) return;
-                    const hr = (150 + Math.random() * 100).toFixed(2);
+                    const t = SystemState.getThrottle(['cpu','gpu']);
+                    const hr = ((150 + Math.random() * 100) * t).toFixed(2);
                     els.hashrate.textContent = hr + ' MH/s';
-                    btcMined += 0.00000003 + Math.random() * 0.00000004;
+                    els.hashrate.style.color = t < 0.5 ? 'var(--danger)' : t < 0.8 ? 'var(--warning)' : 'var(--primary)';
+                    btcMined += (0.00000003 + Math.random() * 0.00000004) * t;
                     els.btc.textContent = btcMined.toFixed(8);
                     if (Math.random() > 0.25) { accepted++; addLog(`Share accepted! (#${accepted})`); }
                     else rejected++;
@@ -1359,6 +1719,7 @@ const APPS = {
             container.querySelector('#mn-stop').addEventListener('click', () => {
                 running = false;
                 SystemState.minerRunning = false;
+                SystemState.clearBoost('miner');
                 intervals.forEach(clearInterval);
                 els.hash.textContent = '-- MINING PAUSED --';
                 els.gpu.style.width = '5%';
@@ -1371,7 +1732,9 @@ const APPS = {
             });
 
             container.cleanup = () => {
-                running = false; SystemState.minerRunning = false; intervals.forEach(clearInterval);
+                running = false; SystemState.minerRunning = false;
+                SystemState.clearBoost('miner');
+                intervals.forEach(clearInterval);
                 const clock3 = document.getElementById('clock');
                 const taskbar3 = document.querySelector('.taskbar');
                 if (clock3) clock3.classList.remove('miner-active-clock');
@@ -1385,6 +1748,8 @@ const APPS = {
     cracker: {
         title: '🔓 PASSWORD BREACH',
         render: (container) => {
+            SystemState.setBoost('cracker', { cpu: [5, 15], ram: [4, 12] });
+            container.cleanup = () => SystemState.clearBoost('cracker');
             container.className = 'cracker-container';
             const crackedUsers = [
                 { user: 'admin', pass: 'Admin@2024!' },
@@ -1446,9 +1811,31 @@ const APPS = {
             const results = container.querySelector('#cr-results');
             const startBtn = container.querySelector('#cr-start');
 
+            // EFFECT: floating password attempts drift across whole screen
+            let crackerFloatInterval = null;
             startBtn.addEventListener('click', () => {
                 if (cracking) return;
                 cracking = true;
+                SystemState.setBoost('cracker', { cpu: [60, 92], ram: [28, 52], diskio: [10, 30] });
+                const floatChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+                crackerFloatInterval = setInterval(() => {
+                    const len = Utils.random(6,14);
+                    const word = Array.from({length:len}, () => floatChars[Math.floor(Math.random()*floatChars.length)]).join('');
+                    const tag = document.createElement('div');
+                    tag.textContent = word;
+                    tag.style.cssText = `
+                        position:fixed;
+                        left:${Math.random()*90}vw;
+                        top:${Math.random()*85}vh;
+                        color:rgba(255,200,0,0.45);
+                        font-family:var(--font-mono);font-size:13px;
+                        pointer-events:none;z-index:9992;
+                        animation:crackerWordFade 1.4s ease forwards;
+                        white-space:nowrap;
+                    `;
+                    document.body.appendChild(tag);
+                    setTimeout(() => tag.remove(), 1400);
+                }, 120);
                 startBtn.textContent = '⏳ BREACHING...';
                 startBtn.style.background = 'rgba(255,200,0,0.15)';
                 statusEl.textContent = 'ACTIVE';
@@ -1458,14 +1845,17 @@ const APPS = {
                 const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%';
 
                 interval = setInterval(() => {
-                    attempts += Utils.random(60, 180);
-                    progress += Math.random() * 1.5;
+                    const t = SystemState.getThrottle(['cpu','ram']);
+                    const attIncrement = Math.round(Utils.random(60, 180) * t);
+                    attempts += attIncrement;
+                    progress += Math.random() * 1.5 * t;
 
                     const len = Utils.random(6, 14);
                     attemptEl.textContent = Array.from({length: len}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 
                     attemptsEl.textContent = attempts.toLocaleString();
-                    speedEl.textContent = Utils.random(900, 1400) + '/s';
+                    speedEl.textContent = Math.round(Utils.random(900, 1400) * t) + '/s';
+                    speedEl.style.color = t < 0.5 ? 'var(--danger)' : t < 0.8 ? 'var(--warning)' : '';
 
                     const remaining = Math.max(0, 100 - progress);
                     const eta = Math.floor(remaining * 0.4);
@@ -1491,7 +1881,9 @@ const APPS = {
 
                     if (progress >= 100) {
                         clearInterval(interval);
+                        if (crackerFloatInterval) { clearInterval(crackerFloatInterval); crackerFloatInterval = null; }
                         cracking = false;
+                        SystemState.setBoost('cracker', { cpu: [5, 15], ram: [4, 12] });
                         attemptEl.textContent = '✓ BREACH COMPLETE';
                         attemptEl.style.color = 'var(--primary)';
                         startBtn.textContent = '✓ BREACH COMPLETE';
@@ -1501,7 +1893,7 @@ const APPS = {
                     }
                 }, 100);
 
-                container.cleanup = () => clearInterval(interval);
+                container.cleanup = () => { clearInterval(interval); if (crackerFloatInterval) clearInterval(crackerFloatInterval); document.querySelectorAll('.cracker-float-word').forEach(t=>t.remove()); };
             });
         }
     }
