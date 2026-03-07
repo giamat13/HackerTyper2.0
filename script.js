@@ -338,7 +338,18 @@ class TyperScene {
     }
 
     render() {
+        const speedMultiplier = SystemState.getSpeedMultiplier('cpu');
+        const blinkSpeed = Math.max(500, CONFIG.typerscene.cursorBlinkSpeed / speedMultiplier);
         this.container.innerHTML = `
+            <style>
+                .typer-cursor {
+                    animation: blink ${blinkSpeed}ms infinite;
+                }
+                @keyframes blink {
+                    0%, 50% { opacity: 1; }
+                    51%, 100% { opacity: 0; }
+                }
+            </style>
             <div class="typerscene-container">
                 <div class="typer-controls">
                     <button class="typer-btn" data-action="start">▶ Start</button>
@@ -351,7 +362,7 @@ class TyperScene {
                     </select>
                 </div>
                 <div class="typer-screen-wrap">
-                    <div class="typer-screen" id="typer-screen"></div>
+                    <div class="typer-screen" id="typer-screen">█</div>
                 </div>
             </div>
         `;
@@ -428,7 +439,7 @@ class TyperScene {
         const screen = document.getElementById('typer-screen');
         if (!screen) return;
         const highlighted = SyntaxHighlighter.highlight(this.displayText);
-        screen.innerHTML = highlighted + '<span class="typer-cursor"></span>';
+        screen.innerHTML = highlighted;
         screen.scrollTop = screen.scrollHeight;
     }
 
@@ -2097,7 +2108,8 @@ class BootSequence {
     async start() {
         for (const log of this.logs) {
             await this.addLog(log);
-            await this.delay(CONFIG.boot.logDelay);
+            const speedMultiplier = SystemState.getSpeedMultiplier('cpu');
+            await this.delay(CONFIG.boot.logDelay / speedMultiplier);
         }
         await this.delay(1000);
         this.screen.classList.add('hidden');
