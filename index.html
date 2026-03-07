@@ -9,6 +9,32 @@
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <title>CYBER NEXUS OS v3.0</title>
     <link rel="stylesheet" href="styles.css">
+
+    <!-- Google Analytics via Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+        import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAYbaVCWzkkfEaEZyEBsdEvb6mL6JxgCsM",
+            authDomain: "fakehacker-prank.firebaseapp.com",
+            projectId: "fakehacker-prank",
+            storageBucket: "fakehacker-prank.firebasestorage.app",
+            messagingSenderId: "351461029122",
+            appId: "1:351461029122:web:877686697ed86eba19be1b",
+            measurementId: "G-KQ901LJ4J1"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+
+        // Track page view
+        logEvent(analytics, 'page_view');
+
+        // Expose analytics globally so script.js can use it
+        window._analytics = analytics;
+        window._logEvent = logEvent;
+    </script>
 </head>
 <body>
     <!-- Boot Screen -->
