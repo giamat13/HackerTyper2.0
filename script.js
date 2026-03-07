@@ -366,11 +366,18 @@ class TyperScene {
         controls.addEventListener('change', (e) => {
             if (e.target.dataset.action === 'language') this.changeLanguage(e.target.value);
         });
-        document.addEventListener('keydown', (e) => {
+        this._keyHandler = (e) => {
+            if (!this.container.isConnected) return;
             if (!this.container.closest('.window.active')) return;
             if (e.key === 'Escape') this.stop();
             else if (!this.isTyping && e.key.length === 1) this.typeChunk();
-        });
+        };
+        document.addEventListener('keydown', this._keyHandler);
+        // Cleanup: stop interval + remove global keydown listener when window is closed
+        this.container.cleanup = () => {
+            this.stop();
+            document.removeEventListener('keydown', this._keyHandler);
+        };
     }
 
     start() {
@@ -455,11 +462,20 @@ const ShortcutManager = {
         this.sequences[id] = { key: key.toLowerCase(), count, windowMs, callback, presses: [] };
     },
 
-    handleKey(key) {
+    handleKey(e) {
+        // Ignore key-repeat events (e.g. holding Space)
+        if (e.repeat) return;
+
         const now = Date.now();
-        const lkey = key.toLowerCase();
+        const lkey = e.key.toLowerCase();
+        // Derive layout-independent key from e.code for letter keys
+        // e.code: 'KeyZ' → 'z', 'KeyX' → 'x', etc. — works regardless of keyboard language
+        const codeKey = (e.code && e.code.startsWith('Key'))
+            ? e.code.slice(3).toLowerCase()
+            : null;
+
         Object.values(this.sequences).forEach(seq => {
-            if (seq.key !== lkey) return;
+            if (seq.key !== lkey && seq.key !== codeKey) return;
 
             // Drop presses older than the allowed window
             seq.presses = seq.presses.filter(t => now - t < seq.windowMs);
@@ -1454,8 +1470,11 @@ class CyberNexusOS {
 
     setupKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
-            // Feed all keys to shortcut manager
-            ShortcutManager.handleKey(e.key);
+            // Prevent browser from hijacking Alt key (menu bar focus, etc.)
+            if (e.key === 'Alt') e.preventDefault();
+
+            // Feed all keys to shortcut manager (pass full event for repeat + code checks)
+            ShortcutManager.handleKey(e);
 
             // Alt + number to open apps
             if (e.altKey && e.key >= '1' && e.key <= '9') {
