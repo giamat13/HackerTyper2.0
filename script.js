@@ -341,7 +341,6 @@ class TyperScene {
                         <option value="javascript">JavaScript</option>
                         <option value="cpp">C++</option>
                     </select>
-                    <button class="typer-btn" data-action="clear">Clear</button>
                 </div>
                 <div class="typer-screen-wrap">
                     <div class="typer-screen" id="typer-screen"></div>
@@ -360,7 +359,6 @@ class TyperScene {
                 case 'start': this.start(); break;
                 case 'stop': this.stop(); break;
                 case 'reset': this.reset(); break;
-                case 'clear': this.clear(); break;
             }
         });
         controls.addEventListener('change', (e) => {
@@ -396,14 +394,6 @@ class TyperScene {
 
     reset() {
         this.stop();
-        this.pointer = 0;
-        this.displayText = '';
-        this.updateDisplay();
-    }
-
-    clear() {
-        this.stop();
-        this.rawText = '';
         this.pointer = 0;
         this.displayText = '';
         this.updateDisplay();
