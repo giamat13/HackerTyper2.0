@@ -1950,15 +1950,15 @@ const APPS = {
 
                 interval = setInterval(() => {
                     const t = SystemState.getThrottle(['cpu','ram']);
-                    const attIncrement = Math.round(Utils.random(60, 180) * t);
+                    const attIncrement = Math.round(Utils.random(60, 180) * t * speedMultiplier);
                     attempts += attIncrement;
-                    progress += Math.random() * 1.5 * t;
+                    progress += Math.random() * 1.5 * t * speedMultiplier;
 
                     const len = Utils.random(6, 14);
                     attemptEl.textContent = Array.from({length: len}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 
                     attemptsEl.textContent = attempts.toLocaleString();
-                    speedEl.textContent = Math.round(Utils.random(900, 1400) * t) + '/s';
+                    speedEl.textContent = Math.round(Utils.random(900, 1400) * t * speedMultiplier) + '/s';
                     speedEl.style.color = t < 0.5 ? 'var(--danger)' : t < 0.8 ? 'var(--warning)' : '';
 
                     const remaining = Math.max(0, 100 - progress);
