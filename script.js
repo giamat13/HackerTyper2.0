@@ -912,56 +912,28 @@ const APPS = {
                 container.appendChild(line);
             }
 
-            // EFFECT: draw SVG cables from THIS window to every other open window
-            const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
-            svg.id = 'network-cables';
-            svg.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9995;';
-            document.body.appendChild(svg);
-
-            const updateCables = () => {
-                svg.innerHTML = '';
-                const src = container.closest('.window');
-                if (!src) return;
-                const sr = src.getBoundingClientRect();
-                const sx = sr.left + sr.width / 2, sy = sr.top + sr.height / 2;
-                document.querySelectorAll('.window').forEach(win => {
-                    if (win === src) return;
-                    const wr = win.getBoundingClientRect();
-                    const tx = wr.left + wr.width / 2, ty = wr.top + wr.height / 2;
-                    const line = document.createElementNS('http://www.w3.org/2000/svg','line');
-                    line.setAttribute('x1', sx); line.setAttribute('y1', sy);
-                    line.setAttribute('x2', tx); line.setAttribute('y2', ty);
-                    line.setAttribute('stroke', 'rgba(0,255,255,0.35)');
-                    line.setAttribute('stroke-width', '1.5');
-                    line.setAttribute('stroke-dasharray', '6,4');
-                    line.setAttribute('class', 'net-cable-line');
-                    svg.appendChild(line);
-                    // animated packet dot
-                    const circle = document.createElementNS('http://www.w3.org/2000/svg','circle');
-                    circle.setAttribute('r','4');
-                    circle.setAttribute('fill','#0ff');
-                    circle.setAttribute('filter','url(#cable-glow)');
-                    const anim = document.createElementNS('http://www.w3.org/2000/svg','animateMotion');
-                    anim.setAttribute('dur', (1.5 + Math.random()*2) + 's');
-                    anim.setAttribute('repeatCount','indefinite');
-                    anim.setAttribute('path', `M${sx},${sy} L${tx},${ty}`);
-                    circle.appendChild(anim);
-                    svg.appendChild(circle);
-                });
-                // glow filter
-                const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
-                defs.innerHTML = `<filter id="cable-glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
-                svg.prepend(defs);
+            // Live packet log inside the window
+            const logEl = Utils.createElement('div', 'net-packet-log');
+            container.appendChild(logEl);
+            const protocols = ['TCP','UDP','ICMP','HTTP','SSH','TLS','DNS','FTP'];
+            const addPacket = () => {
+                const entry = document.createElement('div');
+                entry.className = 'net-packet-entry';
+                const src = `10.${Utils.random(0,255)}.${Utils.random(0,255)}.${Utils.random(1,254)}`;
+                const dst = `172.${Utils.random(16,31)}.${Utils.random(0,255)}.${Utils.random(1,254)}`;
+                const proto = protocols[Utils.random(0, protocols.length-1)];
+                const bytes = Utils.random(64, 65535);
+                entry.innerHTML = `<span class="np-proto">${proto}</span> <span class="np-src">${src}</span> → <span class="np-dst">${dst}</span> <span class="np-bytes">${bytes}B</span>`;
+                logEl.prepend(entry);
+                if (logEl.children.length > 18) logEl.lastChild.remove();
             };
-            updateCables();
-            let cableDelay = 2000;
-            const cableInterval = setInterval(() => {
+            const packetInterval = setInterval(() => {
                 const t = SystemState.getThrottle(['network','bandwidth']);
-                // fewer cable updates when network saturated
-                if (Math.random() < t) updateCables();
-            }, 2000);
+                const count = Math.round((1 + Math.random() * 3) * (2 - t)); // more packets when congested
+                for (let i = 0; i < count; i++) addPacket();
+            }, 300);
             SystemState.setBoost('network', { network: [30, 60], bandwidth: [40, 70], cpu: [4, 14] });
-            container.cleanup = () => { clearInterval(cableInterval); svg.remove(); SystemState.clearBoost('network'); };
+            container.cleanup = () => { clearInterval(packetInterval); SystemState.clearBoost('network'); };
         }
     },
 
@@ -982,68 +954,27 @@ const APPS = {
             }
             container.appendChild(radar);
 
-            // EFFECT: global rotating sweep beam over entire screen
-            const sweep = document.createElement('div');
-            sweep.id = 'radar-global-sweep';
-            sweep.style.cssText = `
-                position:fixed; inset:0; pointer-events:none; z-index:9994;
-                background: conic-gradient(from 0deg, transparent 340deg, rgba(0,255,0,0.12) 355deg, rgba(0,255,0,0.04) 360deg);
-                animation: radarGlobalSpin 4s linear infinite;
-            `;
-            document.body.appendChild(sweep);
-
-            // warning labels that appear on other windows when sweep passes over them
-            let angle = 0;
-            const scanInterval = setInterval(() => {
-                angle = (angle + 15) % 360;
-                if (angle % 90 < 15) {
-                    document.querySelectorAll('.window').forEach(win => {
-                        if (win.contains(container)) return;
-                        const badge = document.createElement('div');
-                        badge.className = 'radar-scan-badge';
-                        badge.textContent = '◉ SCANNING...';
-                        win.appendChild(badge);
-                        setTimeout(() => badge.remove(), 900);
-                    });
-                }
-            }, 200);
+            // Live threat detection list inside the window
+            const threatLog = Utils.createElement('div', 'radar-threat-log');
+            container.appendChild(threatLog);
+            const threatTypes = ['PORT SCAN','BRUTE FORCE','MITM','DDoS','C2 BEACON','EXPLOIT','DATA EXFIL','BOTNET'];
+            const threatInterval = setInterval(() => {
+                if (Math.random() > 0.55) return;
+                const entry = document.createElement('div');
+                entry.className = 'radar-threat-entry';
+                const ip = `${Utils.random(1,254)}.${Utils.random(0,255)}.${Utils.random(0,255)}.${Utils.random(1,254)}`;
+                const type = threatTypes[Utils.random(0, threatTypes.length-1)];
+                const severity = ['LOW','MED','HIGH','CRIT'][Utils.random(0,3)];
+                const sevColor = { LOW:'#0f0', MED:'#ff0', HIGH:'#f80', CRIT:'#f00' }[severity];
+                entry.innerHTML = `<span class="rt-type">${type}</span> <span class="rt-ip">${ip}</span> <span class="rt-sev" style="color:${sevColor}">[${severity}]</span>`;
+                threatLog.prepend(entry);
+                if (threatLog.children.length > 10) threatLog.lastChild.remove();
+            }, 600);
             SystemState.setBoost('radar', { network: [15, 40], cpu: [14, 32], gpu: [5, 18] });
-            container.cleanup = () => { clearInterval(scanInterval); sweep.remove(); document.querySelectorAll('.radar-scan-badge').forEach(b=>b.remove()); SystemState.clearBoost('radar'); };
+            container.cleanup = () => { clearInterval(threatInterval); SystemState.clearBoost('radar'); };
         }
     },
 
-    stats: {
-        title: '📊 DATA ANALYTICS',
-        render: (container) => {
-            container.className = 'chart-container';
-            const chart = Utils.createElement('div', 'bar-chart');
-            const heights = [45, 78, 62, 89, 55, 92, 67, 81];
-            heights.forEach((h, i) => {
-                const bar = Utils.createElement('div', 'bar');
-                bar.style.height = h + '%';
-                bar.style.animationDelay = (i * 0.1) + 's';
-                chart.appendChild(bar);
-            });
-            container.appendChild(chart);
-
-            // EFFECT: mini bar chart overlays pulse at bottom of other windows
-            const statsInterval = setInterval(() => {
-                document.querySelectorAll('.window').forEach(win => {
-                    if (win.contains(container)) return;
-                    if (win.querySelector('.stats-mini-overlay')) return;
-                    const overlay = document.createElement('div');
-                    overlay.className = 'stats-mini-overlay';
-                    overlay.innerHTML = Array.from({length:8}, () =>
-                        `<div style="height:${20+Math.random()*70}%;background:rgba(0,255,0,0.7)"></div>`
-                    ).join('');
-                    win.appendChild(overlay);
-                    setTimeout(() => overlay.remove(), 1800);
-                });
-            }, 3000);
-            SystemState.setBoost('stats', { cpu: [18, 42], ram: [15, 35], diskio: [8, 22] });
-            container.cleanup = () => { clearInterval(statsInterval); document.querySelectorAll('.stats-mini-overlay').forEach(e=>e.remove()); SystemState.clearBoost('stats'); };
-        }
-    },
 
     monitor: {
         title: '💻 SYSTEM MONITOR',
@@ -1159,47 +1090,8 @@ const APPS = {
                 setTimeout(() => char.remove(), 5000);
             }, 200);
 
-            // LEAK: spawn chars on the whole desktop, floating over all other windows
-            const desktop = document.getElementById('desktop');
-            let leakLayer = document.getElementById('matrix-leak-layer');
-            if (!leakLayer) {
-                leakLayer = document.createElement('div');
-                leakLayer.id = 'matrix-leak-layer';
-                leakLayer.style.cssText = `
-                    position:fixed; inset:0; pointer-events:none;
-                    z-index:9998; overflow:hidden;
-                `;
-                document.body.appendChild(leakLayer);
-            }
-            leakLayer._refCount = (leakLayer._refCount || 0) + 1;
-
-            const leakInterval = setInterval(() => {
-                const t = SystemState.getThrottle(['cpu','gpu']);
-                if (Math.random() > t) return;
-                if (leakLayer.children.length > 60) return;
-                const ch = document.createElement('div');
-                ch.textContent = chars[Math.floor(Math.random() * chars.length)];
-                const dur = (2 + Math.random() * 4) / Math.max(t, 0.15);
-                ch.style.cssText = `
-                    position:absolute;
-                    left:${Math.random() * 100}vw;
-                    top:-20px;
-                    color:rgba(0,255,0,${0.3 + t * 0.4});
-                    font-family:var(--font-mono);
-                    font-size:${10 + Math.random() * 14}px;
-                    text-shadow:0 0 6px #0f0;
-                    animation:matrixLeakFall ${dur}s linear forwards;
-                    pointer-events:none;
-                `;
-                leakLayer.appendChild(ch);
-                setTimeout(() => ch.remove(), 6000);
-            }, 120);
-
             container.cleanup = () => {
                 clearInterval(internalInterval);
-                clearInterval(leakInterval);
-                leakLayer._refCount--;
-                if (leakLayer._refCount <= 0) leakLayer.remove();
                 SystemState.clearBoost('matrix');
             };
         }
@@ -1275,28 +1167,10 @@ const APPS = {
                     SystemState.setBoost('terminal', { cpu: [1, 3], diskio: [1, 4] });
                 }
             }, 30);
-            // EFFECT: ghost commands flicker on desktop background
-            const termCmds = ["$ ssh root@10.0.0.1 -p 22", "$ nmap -sV --script vuln 192.168.1.0/24", "$ cat /etc/shadow", "$ sudo rm -rf /var/log/*", "$ tcpdump -i eth0 port 443", "$ netstat -tulpn | grep LISTEN", "$ curl -s https://api.darkweb.onion/data", "$ ./exploit.py --target 10.0.0.5 --payload shell", "$ openssl genrsa -out private.pem 4096", "$ iptables -F && iptables -X"];
-            const desktopEl = document.getElementById('desktop');
-            const ghostInterval = setInterval(() => {
-                if (Math.random() > 0.5) return;
-                const ghost = document.createElement('div');
-                ghost.className = 'terminal-ghost-cmd';
-                ghost.textContent = termCmds[Math.floor(Math.random()*termCmds.length)];
-                ghost.style.cssText = `
-                    position:absolute;
-                    left:${Math.random()*70+5}%;
-                    top:${Math.random()*75+5}%;
-                    color:rgba(0,255,0,0.2);
-                    font-family:var(--font-mono);font-size:12px;
-                    pointer-events:none;z-index:1;
-                    animation:termGhostFade 2.5s ease forwards;
-                    white-space:nowrap;
-                `;
-                desktopEl.appendChild(ghost);
-                setTimeout(() => ghost.remove(), 2500);
-            }, 900);
-            container.cleanup = () => { clearInterval(typeInterval); clearInterval(ghostInterval); document.querySelectorAll('.terminal-ghost-cmd').forEach(e=>e.remove()); };
+            container.cleanup = () => {
+                clearInterval(typeInterval);
+                SystemState.clearBoost('terminal');
+            };
         }
     },
 
@@ -1333,14 +1207,9 @@ const APPS = {
                         win.classList.add('firewall-shake');
                         setTimeout(() => win.classList.remove('firewall-shake'), 500);
                     });
-                    // Flash the desktop red briefly
-                    const flash = document.createElement('div');
-                    flash.style.cssText = `
-                        position:fixed;inset:0;background:rgba(255,0,0,0.08);
-                        pointer-events:none;z-index:9997;animation:firewallFlash 0.4s ease forwards;
-                    `;
-                    document.body.appendChild(flash);
-                    setTimeout(() => flash.remove(), 400);
+                    // Brief red tint on the firewall window itself
+                    const fwin = container.closest('.window');
+                    if (fwin) { fwin.style.boxShadow = '0 0 30px rgba(255,0,0,0.8)'; setTimeout(() => fwin.style.boxShadow = '', 400); }
                 }
             }, 500);
             container.cleanup = () => {
@@ -1579,22 +1448,7 @@ const APPS = {
                 });
             });
 
-            // EFFECT: while deployed, other windows glitch with chromatic aberration
-            let glitchActive = false;
-            deployBtn.addEventListener('click', () => {
-                if (glitchActive) return;
-                glitchActive = true;
-                document.querySelectorAll('.window').forEach(win => {
-                    if (win.contains(container)) return;
-                    win.classList.add('malware-glitch');
-                    setTimeout(() => win.classList.remove('malware-glitch'), 4000);
-                });
-                setTimeout(() => { glitchActive = false; }, 5000);
-            });
-            container.cleanup = () => {
-                document.querySelectorAll('.malware-glitch').forEach(w=>w.classList.remove('malware-glitch'));
-                SystemState.clearBoost('malware');
-            };
+            container.cleanup = () => { SystemState.clearBoost('malware'); };
         }
     },
 

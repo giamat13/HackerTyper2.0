@@ -555,3 +555,35 @@ body {
     border-radius: 2px;
     background: rgba(0,0,0,0.4);
 }
+
+/* ==================== NETWORK PACKET LOG ==================== */
+.net-packet-log {
+    margin-top: 10px; max-height: 160px; overflow: hidden;
+    border-top: 1px solid rgba(0,255,255,0.2); padding-top: 6px;
+    font-size: 10px;
+}
+.net-packet-entry { padding: 1px 0; opacity: 0; animation: npFadeIn 0.3s ease forwards; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@keyframes npFadeIn { to { opacity: 1; } }
+.np-proto { color: var(--accent); min-width: 36px; display: inline-block; }
+.np-src   { color: var(--primary); }
+.np-dst   { color: #aaa; }
+.np-bytes { color: var(--warning); font-size: 9px; }
+
+/* ==================== RADAR THREAT LOG ==================== */
+.radar-threat-log {
+    margin-top: 10px; max-height: 120px; overflow: hidden;
+    border-top: 1px solid rgba(0,255,0,0.2); padding-top: 6px;
+    font-size: 10px;
+}
+.radar-threat-entry { padding: 2px 0; animation: npFadeIn 0.2s ease forwards; }
+.rt-type { color: var(--warning); min-width: 80px; display: inline-block; }
+.rt-ip   { color: #aaa; font-size: 9px; }
+.rt-sev  { float: right; font-size: 9px; font-weight: bold; }
+
+/* ==================== STATS LIVE CHART ==================== */
+.stats-live-chart { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; }
+.slc-row { display: flex; align-items: center; gap: 6px; font-size: 10px; }
+.slc-label { width: 60px; color: var(--primary); font-size: 9px; }
+.slc-bar  { flex: 1; height: 8px; background: rgba(0,255,0,0.1); border: 1px solid rgba(0,255,0,0.2); border-radius: 1px; overflow: hidden; }
+.slc-fill { height: 100%; background: var(--accent); transition: width 0.4s ease, background 0.3s; }
+.slc-val  { width: 30px; text-align: right; font-size: 9px; color: #aaa; }
