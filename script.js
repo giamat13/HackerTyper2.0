@@ -2191,6 +2191,8 @@ class CyberNexusOS {
 
     setupKeyboardShortcuts() {
         document.addEventListener('keydown', (e) => {
+            ShortcutManager.handleKey(e);
+
             // Prevent browser from hijacking Alt key (menu bar focus, etc.)
             if (e.key === 'Alt') e.preventDefault();
 
