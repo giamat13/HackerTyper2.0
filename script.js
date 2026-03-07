@@ -782,6 +782,46 @@ class TutorialManager {
     }
 }
 
+
+// ==================== SYSTEM STATE ====================
+// Shared live state — read by System Monitor, written by Miner & window count
+const SystemState = {
+    cpu: 12,
+    ram: 28,
+    gpu: 5,
+    network: 8,
+    diskio: 10,
+    bandwidth: 15,
+    minerRunning: false,
+    minerHashrate: 0,
+    minerTemp: 0,
+    minerCpuTemp: 0,
+
+    // called every second to drift values naturally
+    tick() {
+        const openWindows = document.querySelectorAll('.window').length;
+        const baseLoad = 8 + openWindows * 5;          // each open window costs ~5%
+
+        const drift = (val, base, variance, min, max) => {
+            let next = val + (Math.random() - 0.48) * variance;
+            // pull toward base load slowly
+            next += (base - next) * 0.05;
+            return Math.max(min, Math.min(max, next));
+        };
+
+        const minerBoost = this.minerRunning ? 38 : 0;
+        const gpuBoost   = this.minerRunning ? 55 : 0;
+
+        this.cpu       = drift(this.cpu,       baseLoad + minerBoost, 4, 2, 99);
+        this.ram       = drift(this.ram,       baseLoad * 1.5,        3, 5, 95);
+        this.gpu       = drift(this.gpu,       baseLoad * 0.6 + gpuBoost, 5, 2, 99);
+        this.network   = drift(this.network,   baseLoad * 0.8,        6, 1, 99);
+        this.diskio    = drift(this.diskio,    baseLoad * 0.4,        4, 1, 99);
+        this.bandwidth = drift(this.bandwidth, baseLoad * 0.7,        5, 1, 99);
+    }
+};
+setInterval(() => SystemState.tick(), 1000);
+
 // ==================== APP DEFINITIONS ====================
 const APPS = {
     typerscene: {
@@ -860,22 +900,46 @@ const APPS = {
         title: '💻 SYSTEM MONITOR',
         render: (container) => {
             container.className = 'system-monitor';
-            const items = [
-                { label: 'CPU', value: 87 }, { label: 'RAM', value: 65 },
-                { label: 'NETWORK', value: 92 }, { label: 'DISK I/O', value: 45 },
-                { label: 'GPU', value: 78 }, { label: 'BANDWIDTH', value: 83 }
+            const metrics = [
+                { key: 'cpu',       label: 'CPU'       },
+                { key: 'ram',       label: 'RAM'       },
+                { key: 'gpu',       label: 'GPU'       },
+                { key: 'network',   label: 'NETWORK'   },
+                { key: 'diskio',    label: 'DISK I/O'  },
+                { key: 'bandwidth', label: 'BANDWIDTH' },
             ];
-            items.forEach((item, i) => {
+
+            metrics.forEach(m => {
                 const row = Utils.createElement('div', 'monitor-row');
                 row.innerHTML = `
-                    <div class="monitor-label">${item.label}</div>
+                    <div class="monitor-label">${m.label}</div>
                     <div class="progress-bar">
-                        <div class="progress-fill" style="width: ${item.value}%; animation-delay: ${i * 0.1}s"></div>
+                        <div class="progress-fill" id="mon-fill-${m.key}" style="width:${Math.round(SystemState[m.key])}%"></div>
                     </div>
-                    <div class="monitor-value">${item.value}%</div>
+                    <div class="monitor-value" id="mon-val-${m.key}">${Math.round(SystemState[m.key])}%</div>
                 `;
                 container.appendChild(row);
             });
+
+            const updateInterval = setInterval(() => {
+                metrics.forEach(m => {
+                    const v = Math.round(SystemState[m.key]);
+                    const fill = document.getElementById('mon-fill-' + m.key);
+                    const val  = document.getElementById('mon-val-'  + m.key);
+                    if (fill) fill.style.width = v + '%';
+                    if (val)  val.textContent  = v + '%';
+
+                    // colour the bar by load level
+                    if (fill) {
+                        fill.style.background =
+                            v > 80 ? 'var(--danger)' :
+                            v > 55 ? 'var(--warning)' :
+                            'var(--primary)';
+                    }
+                });
+            }, 1000);
+
+            container.cleanup = () => clearInterval(updateInterval);
         }
     },
 
@@ -1204,6 +1268,7 @@ const APPS = {
 
             const startMining = () => {
                 running = true;
+                SystemState.minerRunning = true;
                 addLog('Mining started — connecting to pool.bitcoin.org:3333');
                 addLog('Worker: nexus_agent_01 authenticated');
 
@@ -1222,10 +1287,13 @@ const APPS = {
                     if (Math.random() > 0.25) { accepted++; addLog(`Share accepted! (#${accepted})`); }
                     else rejected++;
                     els.shares.textContent = `${accepted} / ${rejected}`;
-                    els.gpu.style.width = (70 + Math.random() * 25) + '%';
-                    els.cpu.style.width = (50 + Math.random() * 30) + '%';
-                    els.temp.textContent = (75 + Math.random() * 15).toFixed(0) + '°C';
-                    els.ctemp.textContent = (60 + Math.random() * 20).toFixed(0) + '°C';
+                    // sync GPU/CPU values from SystemState (which is boosted while miner runs)
+                    const gpuPct = Math.round(SystemState.gpu);
+                    const cpuPct = Math.round(SystemState.cpu);
+                    els.gpu.style.width = gpuPct + '%';
+                    els.cpu.style.width = cpuPct + '%';
+                    els.temp.textContent  = (55 + gpuPct * 0.45).toFixed(0) + '°C';
+                    els.ctemp.textContent = (40 + cpuPct * 0.35).toFixed(0) + '°C';
                 }, 1200);
 
                 intervals = [hashInterval, statsInterval];
@@ -1234,6 +1302,7 @@ const APPS = {
             container.querySelector('#mn-start').addEventListener('click', () => { if (!running) startMining(); });
             container.querySelector('#mn-stop').addEventListener('click', () => {
                 running = false;
+                SystemState.minerRunning = false;
                 intervals.forEach(clearInterval);
                 els.hash.textContent = '-- MINING PAUSED --';
                 els.gpu.style.width = '5%';
@@ -1241,7 +1310,7 @@ const APPS = {
                 addLog('Mining paused by user');
             });
 
-            container.cleanup = () => { running = false; intervals.forEach(clearInterval); };
+            container.cleanup = () => { running = false; SystemState.minerRunning = false; intervals.forEach(clearInterval); };
             startMining();
         }
     },
