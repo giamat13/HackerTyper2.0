@@ -493,3 +493,48 @@ body {
 ::-webkit-scrollbar-track { background: rgba(0,0,0,0.5); }
 ::-webkit-scrollbar-thumb { background: rgba(0,255,0,0.4); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+/* ==================== CROSS-WINDOW EFFECTS ==================== */
+
+/* Matrix leak: falling chars over entire screen */
+@keyframes matrixLeakFall {
+    0%   { transform: translateY(0);    opacity: 0.8; }
+    80%  { opacity: 0.6; }
+    100% { transform: translateY(105vh); opacity: 0; }
+}
+
+/* Firewall wave attack: shake other windows */
+@keyframes firewallShake {
+    0%   { transform: translateX(0); }
+    15%  { transform: translateX(-6px) rotate(-0.5deg); }
+    30%  { transform: translateX(6px)  rotate(0.5deg); }
+    45%  { transform: translateX(-4px); }
+    60%  { transform: translateX(4px); }
+    80%  { transform: translateX(-2px); }
+    100% { transform: translateX(0); }
+}
+.firewall-shake { animation: firewallShake 0.5s ease !important; }
+
+/* Firewall flash overlay */
+@keyframes firewallFlash {
+    0%   { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* Miner active: clock pulses red */
+@keyframes minerClockPulse {
+    0%, 100% { color: var(--danger); text-shadow: 0 0 10px var(--danger), 0 0 20px var(--danger); }
+    50%       { color: #ff6666;       text-shadow: 0 0 5px var(--danger); }
+}
+.miner-active-clock {
+    animation: minerClockPulse 1.2s ease-in-out infinite !important;
+}
+
+/* Miner active: taskbar border turns red/orange */
+@keyframes minerTaskbarGlow {
+    0%, 100% { border-top-color: var(--danger); box-shadow: 0 -5px 30px rgba(255,0,0,0.6); }
+    50%       { border-top-color: #ff8800;       box-shadow: 0 -5px 20px rgba(255,136,0,0.4); }
+}
+.miner-active-taskbar {
+    animation: minerTaskbarGlow 1.5s ease-in-out infinite !important;
+}

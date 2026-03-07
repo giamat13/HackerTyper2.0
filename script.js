@@ -938,7 +938,9 @@ const APPS = {
         render: (container) => {
             container.className = 'matrix-display';
             const chars = '01アイウエオカキクケコ';
-            const interval = setInterval(() => {
+
+            // Internal stream inside the window
+            const internalInterval = setInterval(() => {
                 if (container.children.length > 100) return;
                 const char = Utils.createElement('div', 'matrix-char');
                 char.textContent = chars[Math.floor(Math.random() * chars.length)];
@@ -947,7 +949,46 @@ const APPS = {
                 container.appendChild(char);
                 setTimeout(() => char.remove(), 5000);
             }, 200);
-            container.cleanup = () => clearInterval(interval);
+
+            // LEAK: spawn chars on the whole desktop, floating over all other windows
+            const desktop = document.getElementById('desktop');
+            let leakLayer = document.getElementById('matrix-leak-layer');
+            if (!leakLayer) {
+                leakLayer = document.createElement('div');
+                leakLayer.id = 'matrix-leak-layer';
+                leakLayer.style.cssText = `
+                    position:fixed; inset:0; pointer-events:none;
+                    z-index:9998; overflow:hidden;
+                `;
+                document.body.appendChild(leakLayer);
+            }
+            leakLayer._refCount = (leakLayer._refCount || 0) + 1;
+
+            const leakInterval = setInterval(() => {
+                if (leakLayer.children.length > 60) return;
+                const ch = document.createElement('div');
+                ch.textContent = chars[Math.floor(Math.random() * chars.length)];
+                ch.style.cssText = `
+                    position:absolute;
+                    left:${Math.random() * 100}vw;
+                    top:-20px;
+                    color:rgba(0,255,0,0.55);
+                    font-family:var(--font-mono);
+                    font-size:${10 + Math.random() * 14}px;
+                    text-shadow:0 0 6px #0f0;
+                    animation:matrixLeakFall ${2 + Math.random() * 4}s linear forwards;
+                    pointer-events:none;
+                `;
+                leakLayer.appendChild(ch);
+                setTimeout(() => ch.remove(), 6000);
+            }, 120);
+
+            container.cleanup = () => {
+                clearInterval(internalInterval);
+                clearInterval(leakInterval);
+                leakLayer._refCount--;
+                if (leakLayer._refCount <= 0) leakLayer.remove();
+            };
         }
     },
 
@@ -998,6 +1039,8 @@ const APPS = {
                 layer.style.animationDelay = (i * 0.6) + 's';
                 container.appendChild(layer);
             }
+
+            let attackCount = 0;
             const particleInterval = setInterval(() => {
                 if (container.querySelectorAll('.attack-particle').length > 20) return;
                 const particle = Utils.createElement('div', 'attack-particle');
@@ -1005,6 +1048,24 @@ const APPS = {
                 particle.style.animationDuration = (Math.random() * 2 + 1) + 's';
                 container.appendChild(particle);
                 setTimeout(() => particle.remove(), 3000);
+
+                attackCount++;
+                // Every ~8 particles = a "wave attack" — shake all OTHER windows
+                if (attackCount % 8 === 0) {
+                    document.querySelectorAll('.window').forEach(win => {
+                        if (win.contains(container)) return; // skip firewall window itself
+                        win.classList.add('firewall-shake');
+                        setTimeout(() => win.classList.remove('firewall-shake'), 500);
+                    });
+                    // Flash the desktop red briefly
+                    const flash = document.createElement('div');
+                    flash.style.cssText = `
+                        position:fixed;inset:0;background:rgba(255,0,0,0.08);
+                        pointer-events:none;z-index:9997;animation:firewallFlash 0.4s ease forwards;
+                    `;
+                    document.body.appendChild(flash);
+                    setTimeout(() => flash.remove(), 400);
+                }
             }, 500);
             container.cleanup = () => clearInterval(particleInterval);
         }
@@ -1259,6 +1320,11 @@ const APPS = {
             const startMining = () => {
                 running = true;
                 SystemState.minerRunning = true;
+                // Visual effect: tint clock & taskbar red while mining
+                const clock = document.getElementById('clock');
+                const taskbar = document.querySelector('.taskbar');
+                if (clock) clock.classList.add('miner-active-clock');
+                if (taskbar) taskbar.classList.add('miner-active-taskbar');
                 addLog('Mining started — connecting to pool.bitcoin.org:3333');
                 addLog('Worker: nexus_agent_01 authenticated');
 
@@ -1297,10 +1363,20 @@ const APPS = {
                 els.hash.textContent = '-- MINING PAUSED --';
                 els.gpu.style.width = '5%';
                 els.cpu.style.width = '5%';
+                const clock2 = document.getElementById('clock');
+                const taskbar2 = document.querySelector('.taskbar');
+                if (clock2) clock2.classList.remove('miner-active-clock');
+                if (taskbar2) taskbar2.classList.remove('miner-active-taskbar');
                 addLog('Mining paused by user');
             });
 
-            container.cleanup = () => { running = false; SystemState.minerRunning = false; intervals.forEach(clearInterval); };
+            container.cleanup = () => {
+                running = false; SystemState.minerRunning = false; intervals.forEach(clearInterval);
+                const clock3 = document.getElementById('clock');
+                const taskbar3 = document.querySelector('.taskbar');
+                if (clock3) clock3.classList.remove('miner-active-clock');
+                if (taskbar3) taskbar3.classList.remove('miner-active-taskbar');
+            };
             startMining();
         }
     },
