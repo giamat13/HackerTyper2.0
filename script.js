@@ -696,7 +696,11 @@ class TutorialManager {
                 icon: '⚠️',
                 title: 'CLASSIFIED: SECRET SHORTCUTS',
                 subtitle: 'DO NOT SHARE THESE WITH ANYONE',
-                content: `<div class="tut-shortcuts">
+                content: `<style>
+                    .tut-touch-shortcuts { margin-top: 20px; border-top: 1px solid #0f0; padding-top: 15px; }
+                    .tut-touch-title { color: #0ff; font-weight: bold; margin-bottom: 10px; }
+                </style>
+                <div class="tut-shortcuts">
                     <div class="tut-shortcut"><span class="tut-keys">Ctrl × 3</span><span class="tut-effect denied">ACCESS DENIED — giant red screen</span></div>
                     <div class="tut-shortcut"><span class="tut-keys">Shift × 3</span><span class="tut-effect accepted">ACCESS ACCEPTED — green clearance screen</span></div>
                     <div class="tut-shortcut"><span class="tut-keys">Alt × 3</span><span class="tut-effect danger">SELF-DESTRUCT countdown (5 seconds)</span></div>
@@ -706,7 +710,18 @@ class TutorialManager {
                     <div class="tut-shortcut"><span class="tut-keys">Q × 3</span><span class="tut-effect">CONNECTION TRACE through 47 nodes</span></div>
                     <div class="tut-shortcut"><span class="tut-keys">Caps Lock × 3</span><span class="tut-effect accepted">ADMIN MODE OVERRIDE</span></div>
                 </div>
-                <span class="tut-tip">⚡ TIP: All shortcuts require rapid repeated presses — they look accidental.</span>`
+                <div class="tut-touch-shortcuts">
+                    <div class="tut-touch-title">📱 MOBILE/TOUCH SHORTCUTS (also work with mouse clicks on desktop):</div>
+                    <div class="tut-shortcut"><span class="tut-keys">Tap/Click × 3</span><span class="tut-effect denied">ACCESS DENIED</span></div>
+                    <div class="tut-shortcut"><span class="tut-keys">Tap/Click × 4</span><span class="tut-effect accepted">ACCESS ACCEPTED</span></div>
+                    <div class="tut-shortcut"><span class="tut-keys">Tap/Click × 5</span><span class="tut-effect danger">SELF-DESTRUCT</span></div>
+                    <div class="tut-shortcut"><span class="tut-keys">Tap/Click × 6</span><span class="tut-effect">ENCRYPT FILES</span></div>
+                    <div class="tut-shortcut"><span class="tut-keys">Tap/Click × 7</span><span class="tut-effect danger">FBI WARNING</span></div>
+                    <div class="tut-shortcut"><span class="tut-keys">Tap/Click × 8</span><span class="tut-effect">SATELLITE</span></div>
+                    <div class="tut-shortcut"><span class="tut-keys">Tap/Click × 9</span><span class="tut-effect">TRACE</span></div>
+                    <div class="tut-shortcut"><span class="tut-keys">Tap/Click × 10</span><span class="tut-effect accepted">ADMIN</span></div>
+                </div>
+                <span class="tut-tip">⚡ TIP: All shortcuts require rapid repeated presses/taps/clicks — they look accidental.</span>`
             },
             {
                 icon: '🚀',
@@ -2261,5 +2276,156 @@ class CyberNexusOS {
     }
 }
 
+// ==================== TOUCH SHORTCUT MANAGER ====================
+// For mobile devices without keyboards
+const TouchShortcutManager = {
+    tapCount: 0,
+    lastTapTime: 0,
+    tapWindow: 500, // ms
+
+    init() {
+        const desktop = document.getElementById('desktop');
+        
+        // Handle touch events for mobile
+        desktop.addEventListener('touchstart', (e) => {
+            this.handleTap();
+        });
+        
+        // Handle mouse clicks for desktop
+        desktop.addEventListener('click', (e) => {
+            // Only count left clicks
+            if (e.button === 0) {
+                this.handleTap();
+            }
+        });
+    },
+
+    handleTap() {
+        const now = Date.now();
+        if (now - this.lastTapTime > this.tapWindow) {
+            this.tapCount = 1;
+        } else {
+            this.tapCount++;
+        }
+        this.lastTapTime = now;
+
+        // Clear after window
+        setTimeout(() => {
+            if (Date.now() - this.lastTapTime >= this.tapWindow) {
+                this.triggerShortcut(this.tapCount);
+                this.tapCount = 0;
+            }
+        }, this.tapWindow + 50);
+    },
+
+    triggerShortcut(count) {
+        switch(count) {
+            case 3:
+                showSecretOverlay('overlay-denied', `
+                    <div class="so-big-icon">🚫</div>
+                    <div class="so-title">ACCESS DENIED</div>
+                    <div class="so-sub">INSUFFICIENT CLEARANCE LEVEL</div>
+                    <div class="so-code">ERROR CODE: 403-OMEGA-7</div>
+                    <div class="so-code">THIS INCIDENT HAS BEEN LOGGED</div>
+                `, 4000);
+                break;
+            case 4:
+                showSecretOverlay('overlay-accepted', `
+                    <div class="so-big-icon">✅</div>
+                    <div class="so-title">ACCESS ACCEPTED</div>
+                    <div class="so-sub">WELCOME BACK, AGENT</div>
+                    <div class="so-code">CLEARANCE: LEVEL 5 — OMEGA BLACK</div>
+                    <div class="so-code">ALL SYSTEMS UNLOCKED</div>
+                `, 4000);
+                break;
+            case 5:
+                const overlay = document.createElement('div');
+                overlay.className = 'secret-overlay overlay-destruct';
+                let countdown = 5;
+                overlay.innerHTML = `
+                    <div class="so-big-icon">☢️</div>
+                    <div class="so-title">SELF-DESTRUCT INITIATED</div>
+                    <div class="so-countdown" id="so-countdown">5</div>
+                    <div class="so-sub">ALL CLASSIFIED DATA WILL BE PURGED</div>
+                    <div class="so-code">TAP ANYWHERE TO ABORT</div>
+                `;
+                document.body.appendChild(overlay);
+                const cd = overlay.querySelector('#so-countdown');
+                const interval = setInterval(() => {
+                    countdown--;
+                    cd.textContent = countdown;
+                    if (countdown <= 0) {
+                        clearInterval(interval);
+                        overlay.innerHTML = `
+                            <div class="so-big-icon">✋</div>
+                            <div class="so-title">SEQUENCE ABORTED</div>
+                            <div class="so-sub">FAILSAFE PROTOCOL ENGAGED</div>
+                            <div class="so-code">DATA INTEGRITY PRESERVED</div>
+                        `;
+                        setTimeout(() => overlay.remove(), 2500);
+                    }
+                }, 1000);
+                overlay.addEventListener('touchstart', () => { clearInterval(interval); overlay.remove(); });
+                break;
+            case 6:
+                showSecretOverlay('overlay-encrypt', `
+                    <div class="so-big-icon">🔐</div>
+                    <div class="so-title">ENCRYPTING ALL FILES</div>
+                    <div class="so-sub">AES-256-GCM ENCRYPTION IN PROGRESS</div>
+                    <div class="so-enc-progress"><div class="so-enc-fill"></div></div>
+                    <div class="so-code">SECURING: /classified /financial /personal</div>
+                    <div class="so-code">DO NOT DISCONNECT</div>
+                `, 5000);
+                break;
+            case 7:
+                showSecretOverlay('overlay-fbi', `
+                    <div class="so-fbi-badge">🏛️</div>
+                    <div class="so-fbi-label">FEDERAL BUREAU OF INVESTIGATION</div>
+                    <div class="so-title">⚠️ FBI MONITORING DETECTED ⚠️</div>
+                    <div class="so-sub">YOUR SESSION IS BEING TRACED</div>
+                    <div class="so-code">CASE NUMBER: 2024-CYB-774521-A</div>
+                    <div class="so-code">IP ADDRESS LOGGED — COUNTERMEASURES ACTIVE</div>
+                    <div class="so-code">BOUNCING THROUGH 47 PROXY NODES...</div>
+                `, 5000);
+                break;
+            case 8:
+                showSecretOverlay('overlay-satellite', `
+                    <div class="so-big-icon">🛰️</div>
+                    <div class="so-title">SATELLITE UPLINK ESTABLISHED</div>
+                    <div class="so-sub">KEYHOLE-19 ORBITAL PLATFORM CONNECTED</div>
+                    <div class="so-code">BANDWIDTH: 47.2 TB/s</div>
+                    <div class="so-code">LAT: 23.4°N | LONG: 54.7°E | ALT: 400km</div>
+                    <div class="so-code">ENCRYPTION: QUANTUM-SAFE LATTICE</div>
+                `, 4000);
+                break;
+            case 9:
+                showSecretOverlay('overlay-trace', `
+                    <div class="so-big-icon">🌐</div>
+                    <div class="so-title">CONNECTION TRACE ACTIVE</div>
+                    <div class="so-sub">ROUTING THROUGH 47 ANONYMOUS NODES</div>
+                    <div class="so-trace-list">
+                        <div class="so-trace-hop">HOP 01: 10.0.0.1 → Moscow, RU [45ms]</div>
+                        <div class="so-trace-hop">HOP 02: 185.x.x.x → Tokyo, JP [132ms]</div>
+                        <div class="so-trace-hop">HOP 03: 103.x.x.x → São Paulo, BR [289ms]</div>
+                        <div class="so-trace-hop">HOP 04: 41.x.x.x → Lagos, NG [441ms]</div>
+                        <div class="so-trace-hop">HOP 47: [CLASSIFIED] → [CLASSIFIED]</div>
+                    </div>
+                    <div class="so-code">✓ IDENTITY PROTECTED — UNTRACEABLE</div>
+                `, 6000);
+                break;
+            case 10:
+                showSecretOverlay('overlay-admin', `
+                    <div class="so-big-icon">👑</div>
+                    <div class="so-title">ADMIN OVERRIDE ACTIVATED</div>
+                    <div class="so-sub">ROOT ACCESS GRANTED — ALL PERMISSIONS UNLOCKED</div>
+                    <div class="so-code">$ sudo su — nexus_master</div>
+                    <div class="so-code">KERNEL: UNRESTRICTED MODE ENGAGED</div>
+                `, 4000);
+                break;
+        }
+    }
+};
+
 // ==================== START SYSTEM ====================
+TouchShortcutManager.init();
 const OS = new CyberNexusOS();
