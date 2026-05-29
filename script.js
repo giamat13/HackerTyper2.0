@@ -835,7 +835,10 @@ const SystemState = {
         downloader: { cpu: 1, ram: 1, gpu: 0.1, network: 1, diskio: 2, bandwidth: 5 },
         malware: { cpu: 3, ram: 1.5, gpu: 0.5, network: 2, diskio: 0.5, bandwidth: 1.5 },
         miner: { cpu: 10, ram: 3, gpu: 8, network: 0.5, diskio: 0.3, bandwidth: 1 },
-        cracker: { cpu: 5, ram: 2, gpu: 0.2, network: 0.3, diskio: 0.6, bandwidth: 0.4 }
+        cracker: { cpu: 5, ram: 2, gpu: 0.2, network: 0.3, diskio: 0.6, bandwidth: 0.4 },
+        cctv: { cpu: 3, ram: 2, gpu: 5, network: 4, diskio: 0.3, bandwidth: 4 },
+        wiretap: { cpu: 2.5, ram: 1.5, gpu: 0.8, network: 3, diskio: 0.2, bandwidth: 5 },
+        satuplink: { cpu: 2, ram: 1.5, gpu: 2.5, network: 5, diskio: 0.2, bandwidth: 5 }
     },
 
     // throttle[resource] = 0..1 multiplier — 1 = full speed, 0 = stopped
@@ -2037,6 +2040,327 @@ const APPS = {
 
                 container.cleanup = () => { clearInterval(interval); if (crackerFloatInterval) clearInterval(crackerFloatInterval); document.querySelectorAll('.cracker-float-word').forEach(t=>t.remove()); };
             });
+        }
+    },
+
+    cctv: {
+        title: '📹 CCTV INTERCEPT',
+        render: (container) => {
+            container.className = 'cctv-container';
+            SystemState.setBoost('cctv', { gpu: [22, 50], network: [28, 58], bandwidth: [20, 46], cpu: [8, 20] });
+
+            const camFeeds = ['CAM-01 // LOBBY', 'CAM-02 // PARKING', 'CAM-03 // VAULT', 'CAM-04 // ROOFTOP', 'CAM-05 // SERVER RM', 'CAM-06 // ELEVATOR'];
+            let camIndex = 0;
+
+            container.innerHTML = `
+                <div class="cctv-screen">
+                    <canvas class="cctv-static" width="160" height="90"></canvas>
+                    <div class="cctv-vignette"></div>
+                    <div class="cctv-scanline"></div>
+                    <div class="cctv-hud cctv-hud-top">
+                        <span class="cctv-rec">● REC</span>
+                        <span class="cctv-cam" id="cctv-cam">${camFeeds[0]}</span>
+                    </div>
+                    <div class="cctv-hud cctv-hud-bottom">
+                        <span id="cctv-coords">LAT 00.0000 LON 00.0000</span>
+                        <span id="cctv-clock">00:00:00</span>
+                    </div>
+                    <div class="cctv-reticle" id="cctv-reticle"><span class="cctv-reticle-label">TARGET ACQUIRED</span></div>
+                </div>
+                <div class="cctv-controls">
+                    <button class="cctv-btn" id="cctv-prev">◀ PREV</button>
+                    <span class="cctv-status" id="cctv-status">SCANNING FEED...</span>
+                    <button class="cctv-btn" id="cctv-next">NEXT ▶</button>
+                </div>
+            `;
+
+            const canvas = container.querySelector('.cctv-static');
+            const ctx = canvas.getContext('2d');
+            const reticle = container.querySelector('#cctv-reticle');
+            const coordsEl = container.querySelector('#cctv-coords');
+            const clockEl = container.querySelector('#cctv-clock');
+            const statusEl = container.querySelector('#cctv-status');
+            const camEl = container.querySelector('#cctv-cam');
+
+            const W = canvas.width, H = canvas.height;
+            const img = ctx.createImageData(W, H);
+            let running = true;
+
+            // Static noise — under GPU/bandwidth load we randomly skip frames so it visibly stutters
+            const drawStatic = () => {
+                if (!running) return;
+                const t = SystemState.getThrottle(['gpu', 'bandwidth']);
+                if (Math.random() <= t) {
+                    const d = img.data;
+                    for (let i = 0; i < d.length; i += 4) {
+                        const v = (Math.random() * 255) | 0;
+                        d[i] = v * 0.4; d[i + 1] = v; d[i + 2] = v * 0.4; d[i + 3] = 255;
+                    }
+                    ctx.putImageData(img, 0, 0);
+                }
+                requestAnimationFrame(drawStatic);
+            };
+            requestAnimationFrame(drawStatic);
+
+            // Fake face-detection reticle that hops around and occasionally "locks on"
+            const moveReticle = () => {
+                reticle.style.left = Utils.random(8, 70) + '%';
+                reticle.style.top = Utils.random(8, 55) + '%';
+                const locked = Math.random() > 0.5;
+                reticle.classList.toggle('locked', locked);
+                statusEl.textContent = locked ? 'TARGET ACQUIRED' : 'SCANNING FEED...';
+                statusEl.style.color = locked ? 'var(--danger)' : 'var(--primary)';
+            };
+            const speedMultiplier = SystemState.getSpeedMultiplier('gpu');
+            const reticleInterval = setInterval(moveReticle, Math.max(700, 1400 / speedMultiplier));
+            moveReticle();
+
+            // Drifting GPS coordinates + live timestamp
+            const metaInterval = setInterval(() => {
+                const lat = (Utils.random(-8999, 8999) / 100).toFixed(4);
+                const lon = (Utils.random(-17999, 17999) / 100).toFixed(4);
+                coordsEl.textContent = `LAT ${lat} LON ${lon}`;
+                clockEl.textContent = new Date().toLocaleTimeString('en-US', { hour12: false });
+            }, 1000);
+
+            const switchCam = (dir) => {
+                camIndex = (camIndex + dir + camFeeds.length) % camFeeds.length;
+                camEl.textContent = camFeeds[camIndex];
+                canvas.style.opacity = '0.2'; // brief signal-loss flash
+                setTimeout(() => { canvas.style.opacity = '1'; }, 120);
+            };
+            container.querySelector('#cctv-next').addEventListener('click', () => switchCam(1));
+            container.querySelector('#cctv-prev').addEventListener('click', () => switchCam(-1));
+            const autoCam = setInterval(() => switchCam(1), 6000);
+
+            container.cleanup = () => {
+                running = false;
+                clearInterval(reticleInterval);
+                clearInterval(metaInterval);
+                clearInterval(autoCam);
+                SystemState.clearBoost('cctv');
+            };
+        }
+    },
+
+    wiretap: {
+        title: '🎧 AUDIO WIRETAP',
+        render: (container) => {
+            container.className = 'wiretap-container';
+            SystemState.setBoost('wiretap', { cpu: [12, 30], network: [20, 45], bandwidth: [30, 62], ram: [6, 16] });
+
+            container.innerHTML = `
+                <div class="wiretap-header">
+                    <span class="wiretap-live">● LIVE</span>
+                    <span id="wiretap-target">TARGET: +1-555-0${Utils.random(100, 999)}</span>
+                    <span id="wiretap-dur">00:00</span>
+                </div>
+                <canvas class="wiretap-wave" width="480" height="120"></canvas>
+                <div class="wiretap-transcript-label">▼ AUTO-TRANSCRIPTION</div>
+                <div class="wiretap-transcript" id="wiretap-transcript"></div>
+            `;
+
+            const canvas = container.querySelector('.wiretap-wave');
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width, H = canvas.height;
+            const transcriptEl = container.querySelector('#wiretap-transcript');
+            const durEl = container.querySelector('#wiretap-dur');
+            let running = true;
+            let phase = 0;
+
+            // Animated waveform — amplitude and scroll speed drop as CPU/bandwidth saturate
+            const drawWave = () => {
+                if (!running) return;
+                const t = SystemState.getThrottle(['cpu', 'bandwidth']);
+                ctx.clearRect(0, 0, W, H);
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#0f0';
+                ctx.shadowColor = '#0f0';
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                const amp = (H / 3) * t;
+                for (let x = 0; x <= W; x += 2) {
+                    const y = H / 2
+                        + Math.sin((x * 0.04) + phase) * amp * 0.5
+                        + Math.sin((x * 0.13) + phase * 1.7) * amp * 0.3 * Math.random();
+                    if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+                phase += 0.15 * (0.3 + t);
+                requestAnimationFrame(drawWave);
+            };
+            requestAnimationFrame(drawWave);
+
+            // Call duration counter
+            let seconds = 0;
+            const durInterval = setInterval(() => {
+                seconds++;
+                const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+                const s = String(seconds % 60).padStart(2, '0');
+                durEl.textContent = `${m}:${s}`;
+            }, 1000);
+
+            // Fake intercepted transcript, revealed character-by-character in real time
+            const lines = [
+                'subject confirms the package is ready for pickup',
+                'meet at the usual location after midnight',
+                'they suspect nothing, proceed as planned',
+                'transfer the funds to the offshore account',
+                'do not use this line again, it may be compromised',
+                'the access codes have been changed, stand by',
+                'our contact inside will handle the rest',
+                'abort the operation if you see anyone following you'
+            ];
+            const speakers = ['VOICE A', 'VOICE B'];
+            let lineEl = null, charPos = 0, currentText = '', speaker = 0;
+
+            const startLine = () => {
+                currentText = lines[Utils.random(0, lines.length - 1)];
+                charPos = 0;
+                speaker = 1 - speaker;
+                lineEl = document.createElement('div');
+                lineEl.className = 'wiretap-line';
+                lineEl.innerHTML = `<span class="wt-speaker">${speakers[speaker]}:</span> <span class="wt-text"></span>`;
+                transcriptEl.appendChild(lineEl);
+                if (transcriptEl.children.length > 12) transcriptEl.firstChild.remove();
+            };
+            startLine();
+
+            const speedMultiplier = SystemState.getSpeedMultiplier('cpu');
+            // delay per character — re-read live so heavy CPU load slows the transcription
+            const interval = () => Math.max(40, (90 / speedMultiplier) / Math.max(0.3, SystemState.getThrottle(['cpu'])));
+            let typeTimeout = null;
+            const tick = () => {
+                if (!running) return;
+                if (charPos < currentText.length) {
+                    charPos++;
+                    lineEl.querySelector('.wt-text').textContent = currentText.slice(0, charPos);
+                    transcriptEl.scrollTop = transcriptEl.scrollHeight;
+                    typeTimeout = setTimeout(tick, interval());
+                } else {
+                    typeTimeout = setTimeout(() => { startLine(); typeTimeout = setTimeout(tick, interval()); }, 1200);
+                }
+            };
+            typeTimeout = setTimeout(tick, interval());
+
+            container.cleanup = () => {
+                running = false;
+                clearInterval(durInterval);
+                clearTimeout(typeTimeout);
+                SystemState.clearBoost('wiretap');
+            };
+        }
+    },
+
+    satuplink: {
+        title: '🛰️ SAT-UPLINK',
+        render: (container) => {
+            container.className = 'satuplink-container';
+            SystemState.setBoost('satuplink', { network: [30, 64], bandwidth: [28, 58], gpu: [15, 38], cpu: [6, 18] });
+
+            container.innerHTML = `
+                <div class="sat-top">
+                    <span id="sat-id">SAT-${Utils.random(100, 999)} // GEO-SYNC</span>
+                    <span id="sat-signal">SIGNAL: ▮▮▮▮▯</span>
+                </div>
+                <div class="sat-grid">
+                    <canvas class="sat-map" width="320" height="200"></canvas>
+                    <div class="sat-sweep"></div>
+                    <div class="sat-target" id="sat-target">+</div>
+                </div>
+                <div class="sat-lock">
+                    <div class="sat-lock-label">TARGET LOCK</div>
+                    <div class="sat-lock-bar"><div class="sat-lock-fill" id="sat-lock-fill"></div></div>
+                    <div class="sat-lock-pct" id="sat-lock-pct">0%</div>
+                </div>
+                <div class="sat-telemetry" id="sat-telemetry"></div>
+            `;
+
+            const canvas = container.querySelector('.sat-map');
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width, H = canvas.height;
+            const target = container.querySelector('#sat-target');
+            const lockFill = container.querySelector('#sat-lock-fill');
+            const lockPct = container.querySelector('#sat-lock-pct');
+            const telemetryEl = container.querySelector('#sat-telemetry');
+            const signalEl = container.querySelector('#sat-signal');
+
+            // Static grid + fake landmasses
+            ctx.clearRect(0, 0, W, H);
+            ctx.strokeStyle = 'rgba(0,255,0,0.18)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x <= W; x += 20) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+            for (let y = 0; y <= H; y += 20) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+            ctx.fillStyle = 'rgba(0,255,0,0.07)';
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                ctx.ellipse(Utils.random(0, W), Utils.random(0, H), Utils.random(20, 60), Utils.random(15, 40), Math.random() * Math.PI, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Telemetry stream
+            const addTelemetry = (text, highlight) => {
+                const row = document.createElement('div');
+                row.className = 'sat-tele-row' + (highlight ? ' highlight' : '');
+                row.textContent = text;
+                telemetryEl.prepend(row);
+                if (telemetryEl.children.length > 8) telemetryEl.lastChild.remove();
+            };
+
+            // Target marker drifts across the grid
+            const moveTarget = () => {
+                target.style.left = Utils.random(10, 88) + '%';
+                target.style.top = Utils.random(10, 82) + '%';
+            };
+            moveTarget();
+            const targetInterval = setInterval(moveTarget, 2500);
+
+            // Lock-on progress — faster with strong hardware, stalls when network/bandwidth throttle
+            let lock = 0;
+            let locked = false;
+            const speedMultiplier = SystemState.getSpeedMultiplier('network');
+            const lockInterval = setInterval(() => {
+                const t = SystemState.getThrottle(['network', 'bandwidth']);
+                if (!locked) {
+                    lock = Math.min(100, lock + (Utils.random(1, 4) * speedMultiplier * t));
+                    lockFill.style.width = lock + '%';
+                    lockPct.textContent = Math.floor(lock) + '%';
+                    if (lock >= 100) {
+                        locked = true;
+                        lockPct.textContent = 'LOCKED';
+                        lockPct.style.color = 'var(--danger)';
+                        target.classList.add('locked');
+                        addTelemetry('>>> TARGET LOCK CONFIRMED <<<', true);
+                        setTimeout(() => {
+                            locked = false; lock = 0; moveTarget();
+                            lockPct.style.color = '';
+                            target.classList.remove('locked');
+                        }, 4000);
+                    }
+                }
+                // signal-strength bars reflect current throttle
+                const bars = Math.max(1, Math.round(t * 5));
+                signalEl.textContent = 'SIGNAL: ' + '▮'.repeat(bars) + '▯'.repeat(5 - bars);
+            }, 300);
+
+            const teleMsgs = () => [
+                `ALT ${Utils.random(180, 420)}km  VEL ${Utils.random(6, 8)}.${Utils.random(0, 9)}km/s`,
+                `AZ ${Utils.random(0, 359)}°  EL ${Utils.random(0, 90)}°  DOP ${(Math.random() * 5).toFixed(2)}`,
+                `UPLINK ${Utils.random(40, 99)}%  PKT ${Utils.random(1000, 9999)}  LOSS ${Utils.random(0, 3)}%`,
+                `THERM ${Utils.random(-40, 60)}°C  PWR ${Utils.random(70, 100)}%  ORB STABLE`,
+                `DECRYPT AES-256 ... ${Utils.random(10, 99)}% COMPLETE`
+            ];
+            const teleInterval = setInterval(() => {
+                const msgs = teleMsgs();
+                addTelemetry(msgs[Utils.random(0, msgs.length - 1)]);
+            }, Math.max(500, 900 / speedMultiplier));
+
+            container.cleanup = () => {
+                clearInterval(targetInterval);
+                clearInterval(lockInterval);
+                clearInterval(teleInterval);
+                SystemState.clearBoost('satuplink');
+            };
         }
     },
 
