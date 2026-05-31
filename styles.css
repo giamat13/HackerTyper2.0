@@ -717,3 +717,59 @@ body {
 .sat-tele-row { animation: npFadeIn 0.2s ease forwards; color: #aaa; white-space: nowrap; }
 .sat-tele-row.highlight { color: var(--danger); font-weight: bold; letter-spacing: 1px; }
 .slc-val  { width: 30px; text-align: right; font-size: 9px; color: #aaa; }
+
+/* ==================== DNS SNIFFER ==================== */
+.dnssniffer-container { width: 100%; min-width: 520px; height: 100%; background: #000; display: flex; flex-direction: column; font-family: var(--font-mono); }
+.dns-header { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: rgba(0,255,255,0.05); border-bottom: 1px solid rgba(0,255,255,0.3); font-size: 11px; flex-shrink: 0; }
+.dns-status-dot { width: 8px; height: 8px; background: #0ff; border-radius: 50%; box-shadow: 0 0 8px #0ff; animation: pulse 1s infinite; flex-shrink: 0; }
+.dns-status-text { color: #0ff; font-weight: bold; letter-spacing: 1px; }
+.dns-count { color: #0f0; margin-left: auto; }
+.dns-iface { color: #666; font-size: 10px; }
+.dns-filter-row { display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-bottom: 1px solid rgba(0,255,0,0.1); flex-shrink: 0; font-size: 10px; }
+.dns-filter-label { color: #666; }
+.dns-filter { color: rgba(0,255,0,0.4); border: 1px solid rgba(0,255,0,0.2); padding: 1px 6px; border-radius: 2px; cursor: pointer; }
+.dns-filter.active { color: var(--primary); border-color: var(--primary); background: rgba(0,255,0,0.08); }
+.dns-table-header { display: grid; grid-template-columns: 50px 1fr 130px 55px; padding: 4px 10px; background: rgba(0,255,0,0.06); border-bottom: 1px solid rgba(0,255,0,0.15); font-size: 9px; letter-spacing: 2px; color: #666; flex-shrink: 0; }
+.dns-entries { flex: 1; overflow-y: auto; padding: 2px 6px; }
+.dns-entry { display: grid; grid-template-columns: 50px 1fr 130px 55px; padding: 3px 4px; border-bottom: 1px solid rgba(0,255,0,0.05); font-size: 10px; animation: npFadeIn 0.2s ease; }
+.dns-entry.suspicious { background: rgba(255,0,0,0.07); border-color: rgba(255,0,0,0.15); }
+.dns-type { font-weight: bold; font-size: 9px; }
+.dns-type-a { color: #0f0; } .dns-type-aaaa { color: #0ff; } .dns-type-mx { color: #f80; }
+.dns-type-txt { color: #f0f; } .dns-type-cname { color: #ff0; } .dns-type-ns { color: #8f8; }
+.dns-type-ptr { color: #88f; } .dns-type-soa { color: #fa0; }
+.dns-domain { color: var(--primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dns-entry.suspicious .dns-domain { color: #f88; }
+.dns-response { color: #888; font-size: 9px; }
+.dns-ttl { color: #555; font-size: 9px; text-align: right; }
+.dns-stats-row { display: flex; gap: 12px; padding: 6px 10px; border-top: 1px solid rgba(0,255,0,0.15); font-size: 10px; color: #666; flex-shrink: 0; flex-wrap: wrap; }
+.dns-stats-row strong { color: var(--primary); }
+@keyframes dnsDriftFade { 0% { opacity:0; transform: translateX(20px); } 15% { opacity:1; transform: translateX(0); } 80% { opacity:1; } 100% { opacity:0; } }
+
+/* ==================== DARKWEB BROWSER ==================== */
+.darkweb-container { width: 100%; min-width: 500px; height: 100%; background: #000; display: flex; flex-direction: column; font-family: var(--font-mono); }
+.dw-tor-route { padding: 5px 10px; background: rgba(100,0,100,0.1); border-bottom: 1px solid rgba(100,0,200,0.3); font-size: 9px; color: #a0a; letter-spacing: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+.dw-tor-label { color: #888; margin-right: 6px; }
+.dw-addr-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: rgba(20,0,20,0.8); border-bottom: 1px solid rgba(100,0,200,0.2); flex-shrink: 0; }
+.dw-addr-icon { font-size: 12px; }
+.dw-addr { color: #c080ff; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; letter-spacing: 0.5px; }
+.dw-connect-bar { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-bottom: 1px solid rgba(100,0,200,0.15); flex-shrink: 0; font-size: 10px; }
+.dw-connect-label { color: #888; min-width: 80px; }
+.dw-connect-progress { flex: 1; height: 6px; background: rgba(100,0,200,0.1); border-radius: 3px; overflow: hidden; border: 1px solid rgba(100,0,200,0.3); }
+.dw-connect-fill { height: 100%; width: 0; background: linear-gradient(90deg, #600090, #c080ff); border-radius: 3px; transition: width 0.1s; box-shadow: 0 0 6px rgba(192,128,255,0.5); }
+.dw-connect-pct { color: #c080ff; min-width: 35px; text-align: right; font-size: 10px; }
+.dw-site-info { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid rgba(100,0,200,0.15); flex-shrink: 0; }
+.dw-site-name { color: #e080ff; font-size: 13px; font-weight: bold; }
+.dw-site-cat { font-size: 10px; color: #888; }
+.dw-content { flex: 1; padding: 10px 12px; overflow-y: auto; background: rgba(5,0,10,0.7); }
+.dw-content-line { color: rgba(200,128,255,0.8); font-size: 11px; line-height: 1.8; animation: npFadeIn 0.3s ease; }
+.dw-sites-list { flex-shrink: 0; border-top: 1px solid rgba(100,0,200,0.25); max-height: 130px; overflow-y: auto; }
+.dw-site-item { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-bottom: 1px solid rgba(100,0,200,0.1); cursor: pointer; transition: background 0.15s; font-size: 10px; }
+.dw-site-item:hover, .dw-site-item.active { background: rgba(100,0,200,0.12); }
+.dw-site-badge { font-size: 9px; font-weight: bold; padding: 1px 4px; border-radius: 2px; border: 1px solid; min-width: 52px; text-align: center; }
+.dw-cat-index  { color: #888; border-color: #555; }
+.dw-cat-market { color: #f80; border-color: #f80; background: rgba(255,128,0,0.08); }
+.dw-cat-data   { color: #f00; border-color: #f00; background: rgba(255,0,0,0.08); }
+.dw-cat-leak   { color: #0ff; border-color: #0ff; background: rgba(0,255,255,0.06); }
+.dw-cat-exploit{ color: #ff0; border-color: #ff0; background: rgba(255,255,0,0.06); }
+.dw-cat-comms  { color: #c080ff; border-color: #c080ff; background: rgba(192,128,255,0.06); }
+.dw-site-item-name { color: #c080ff; }
