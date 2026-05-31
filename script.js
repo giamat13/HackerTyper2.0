@@ -838,7 +838,9 @@ const SystemState = {
         cracker: { cpu: 5, ram: 2, gpu: 0.2, network: 0.3, diskio: 0.6, bandwidth: 0.4 },
         cctv: { cpu: 3, ram: 2, gpu: 5, network: 4, diskio: 0.3, bandwidth: 4 },
         wiretap: { cpu: 2.5, ram: 1.5, gpu: 0.8, network: 3, diskio: 0.2, bandwidth: 5 },
-        satuplink: { cpu: 2, ram: 1.5, gpu: 2.5, network: 5, diskio: 0.2, bandwidth: 5 }
+        satuplink: { cpu: 2, ram: 1.5, gpu: 2.5, network: 5, diskio: 0.2, bandwidth: 5 },
+        dnssniffer: { cpu: 1.5, ram: 1, gpu: 0.1, network: 4, diskio: 0.5, bandwidth: 3 },
+        darkweb: { cpu: 2, ram: 1.5, gpu: 0.2, network: 3, diskio: 0.3, bandwidth: 3.5 }
     },
 
     // throttle[resource] = 0..1 multiplier — 1 = full speed, 0 = stopped
@@ -2360,6 +2362,261 @@ const APPS = {
                 clearInterval(lockInterval);
                 clearInterval(teleInterval);
                 SystemState.clearBoost('satuplink');
+            };
+        }
+    },
+
+    // ==================== NEW: DNS SNIFFER ====================
+    dnssniffer: {
+        title: '🔍 DNS SNIFFER',
+        render: (container) => {
+            SystemState.setBoost('dnssniffer', { network: [20, 50], bandwidth: [15, 40], cpu: [5, 14] });
+            container.className = 'dnssniffer-container';
+
+            const queryTypes = ['A', 'AAAA', 'MX', 'TXT', 'CNAME', 'NS', 'PTR', 'SOA'];
+            const domains = [
+                'login.corporate-vpn.net', 'internal.bank-secure.com', 'mail.gov-agency.us',
+                'api.financial-data.io', 'secure.health-records.org', 'admin.military-ops.gov',
+                'db.classified-intel.net', 'auth.pentagon-secure.mil', 'payroll.corp-internal.com',
+                'vpn.secret-facility.gov', 'cloud.intelligence-ops.net', 'files.confidential-data.org'
+            ];
+
+            container.innerHTML = `
+                <div class="dns-header">
+                    <div class="dns-status-dot"></div>
+                    <div class="dns-status-text">INTERCEPTING DNS TRAFFIC</div>
+                    <div class="dns-count">CAPTURED: <span id="dns-count">0</span></div>
+                    <div class="dns-iface">IFACE: eth0 [PROMISCUOUS]</div>
+                </div>
+                <div class="dns-filter-row">
+                    <span class="dns-filter-label">FILTER:</span>
+                    <span class="dns-filter active">ALL</span>
+                    <span class="dns-filter">A/AAAA</span>
+                    <span class="dns-filter">MX</span>
+                    <span class="dns-filter">TXT</span>
+                </div>
+                <div class="dns-table-header">
+                    <span>TYPE</span><span>DOMAIN</span><span>RESPONSE</span><span>TTL</span>
+                </div>
+                <div class="dns-entries" id="dns-entries"></div>
+                <div class="dns-stats-row">
+                    <span>QUERIES: <strong id="dns-queries">0</strong></span>
+                    <span>RESPONSES: <strong id="dns-resp">0</strong></span>
+                    <span>SUSPICIOUS: <strong id="dns-susp" style="color:#f00">0</strong></span>
+                    <span>BW: <strong id="dns-bw">0.0 KB/s</strong></span>
+                </div>
+            `;
+
+            let count = 0, queries = 0, responses = 0, suspicious = 0;
+            const countEl = container.querySelector('#dns-count');
+            const entriesEl = container.querySelector('#dns-entries');
+            const queriesEl = container.querySelector('#dns-queries');
+            const respEl = container.querySelector('#dns-resp');
+            const suspEl = container.querySelector('#dns-susp');
+            const bwEl = container.querySelector('#dns-bw');
+
+            const speedMultiplier = SystemState.getSpeedMultiplier('network');
+
+            const addEntry = () => {
+                const t = SystemState.getThrottle(['network', 'bandwidth']);
+                if (Math.random() > t * 0.9) return;
+
+                count++;
+                queries += Utils.random(1, 3);
+                responses += Utils.random(1, 2);
+                const isSusp = Math.random() > 0.75;
+                if (isSusp) suspicious++;
+
+                const type = queryTypes[Utils.random(0, queryTypes.length - 1)];
+                const domain = domains[Utils.random(0, domains.length - 1)];
+                const ip = `${Utils.random(1, 254)}.${Utils.random(0, 255)}.${Utils.random(0, 255)}.${Utils.random(1, 254)}`;
+                const ttl = Utils.random(60, 3600);
+
+                const entry = document.createElement('div');
+                entry.className = 'dns-entry' + (isSusp ? ' suspicious' : '');
+                entry.innerHTML = `
+                    <span class="dns-type dns-type-${type.toLowerCase()}">${type}</span>
+                    <span class="dns-domain">${domain}</span>
+                    <span class="dns-response">${ip}</span>
+                    <span class="dns-ttl">${ttl}s</span>
+                `;
+                entriesEl.prepend(entry);
+                if (entriesEl.children.length > 20) entriesEl.lastChild.remove();
+
+                countEl.textContent = count;
+                queriesEl.textContent = queries;
+                respEl.textContent = responses;
+                suspEl.textContent = suspicious;
+                bwEl.textContent = ((Math.random() * 80 + 10) * t).toFixed(1) + ' KB/s';
+            };
+
+            const captureInterval = setInterval(addEntry, Math.max(200, 600 / speedMultiplier));
+
+            // EFFECT: suspicious query alerts float in from the right
+            const alertInterval = setInterval(() => {
+                if (Math.random() > 0.3) return;
+                const domain = domains[Utils.random(0, domains.length - 1)];
+                const tag = document.createElement('div');
+                tag.textContent = `⚠ DNS INTERCEPT: ${domain}`;
+                tag.style.cssText = `
+                    position:fixed; right:20px; top:${Utils.random(10, 70)}vh;
+                    color:rgba(255,50,50,0.9); font-family:var(--font-mono); font-size:11px;
+                    background:rgba(50,0,0,0.85); border:1px solid #f00;
+                    padding:4px 8px; border-radius:2px;
+                    pointer-events:none; z-index:9992;
+                    animation:dnsDriftFade 2.5s ease forwards; white-space:nowrap;
+                `;
+                document.body.appendChild(tag);
+                setTimeout(() => tag.remove(), 2500);
+            }, 3000);
+
+            container.cleanup = () => {
+                clearInterval(captureInterval);
+                clearInterval(alertInterval);
+                SystemState.clearBoost('dnssniffer');
+            };
+        }
+    },
+
+    // ==================== NEW: DARK WEB BROWSER ====================
+    darkweb: {
+        title: '🌑 DARKWEB BROWSER',
+        render: (container) => {
+            SystemState.setBoost('darkweb', { network: [15, 40], bandwidth: [20, 50], cpu: [6, 18], ram: [4, 12] });
+            container.className = 'darkweb-container';
+
+            const sites = [
+                { url: 'zqktlwiuavvvqqt4ybvgvi7tyo4hjl5xgfuvpdf6otjiycgwqbym26wid.onion', name: 'The Hidden Wiki', category: 'INDEX' },
+                { url: 'expyuzz4wqqyqhjn.onion/darknet/markets/', name: 'Black Market Exchange', category: 'MARKET' },
+                { url: 'p53lf57qovyuvwsc6xnrppyply3vtqm7l6pcobkmyqg6uphvydcpqyd.onion', name: 'Classified Data Dumps', category: 'DATA' },
+                { url: 'hss3uro2hsxfogfq.onion/en/index.html', name: 'Secure Drop Node', category: 'LEAK' },
+                { url: 'nzdnmfcf2z5pd3vr.onion/', name: 'Zero-Day Exchange', category: 'EXPLOIT' },
+                { url: 'msydqstlz2kzerdg.onion', name: 'Anonymous Comms Hub', category: 'COMMS' },
+            ];
+
+            const torNodes = [
+                'Frankfurt, DE', 'Amsterdam, NL', 'Bucharest, RO', 'Moscow, RU', 'Tokyo, JP',
+                'São Paulo, BR', 'Singapore, SG', 'Stockholm, SE', 'Dublin, IE'
+            ];
+
+            const siteContents = [
+                ['> DATABASES: Financial, Medical, Gov', '> RECORDS: 847,291 entries indexed', '> ACCESS: Anonymous only — TOR required'],
+                ['> LISTINGS: 1,247 active', '> ESCROW: BTC / XMR only', '> VERIFIED VENDORS: 89'],
+                ['> LATEST DUMP: corp_breach_2024.sql (2.1GB)', '> CREDENTIALS: 14,000+ verified', '> FREE SAMPLES AVAILABLE'],
+                ['> SUBMISSIONS: 1,891 files', '> JOURNALISTS ONLINE: 4', '> ENCRYPTED CHANNEL ACTIVE'],
+                ['> CVE-2024-XXXX: $45,000', '> REMOTE CODE EXEC: $120,000', '> 0-DAY BUNDLE: NEGOTIABLE'],
+                ['> CHANNELS: 247 active', '> USERS ONLINE: 1,892', '> MILITARY-GRADE END-TO-END ENCRYPTION'],
+            ];
+
+            container.innerHTML = `
+                <div class="dw-tor-route">
+                    <span class="dw-tor-label">TOR ROUTE:</span>
+                    <span id="dw-route">ESTABLISHING...</span>
+                </div>
+                <div class="dw-addr-bar">
+                    <span class="dw-addr-icon">🔒</span>
+                    <span class="dw-addr" id="dw-addr">${sites[0].url}</span>
+                </div>
+                <div class="dw-connect-bar">
+                    <span class="dw-connect-label">CONNECTING:</span>
+                    <div class="dw-connect-progress"><div class="dw-connect-fill" id="dw-fill"></div></div>
+                    <span class="dw-connect-pct" id="dw-pct">0%</span>
+                </div>
+                <div class="dw-site-info">
+                    <div class="dw-site-name" id="dw-site-name">${sites[0].name}</div>
+                    <div class="dw-site-cat" id="dw-site-cat">[${sites[0].category}]</div>
+                </div>
+                <div class="dw-content" id="dw-content"></div>
+                <div class="dw-sites-list" id="dw-sites">
+                    ${sites.map((s, i) => `
+                        <div class="dw-site-item" data-idx="${i}">
+                            <span class="dw-site-badge dw-cat-${s.category.toLowerCase()}">[${s.category}]</span>
+                            <span class="dw-site-item-name">${s.name}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+
+            const addrEl = container.querySelector('#dw-addr');
+            const fillEl = container.querySelector('#dw-fill');
+            const pctEl = container.querySelector('#dw-pct');
+            const siteNameEl = container.querySelector('#dw-site-name');
+            const siteCatEl = container.querySelector('#dw-site-cat');
+            const contentEl = container.querySelector('#dw-content');
+            const routeEl = container.querySelector('#dw-route');
+
+            let siteIdx = 0;
+            let connectProgress = 0;
+            let connectInterval = null;
+
+            const updateRoute = () => {
+                const count = Utils.random(3, 5);
+                const route = Array.from({ length: count }, () => torNodes[Utils.random(0, torNodes.length - 1)]);
+                routeEl.textContent = ['YOU', ...route, 'TARGET'].join(' → ');
+            };
+            updateRoute();
+
+            const connectTo = (idx) => {
+                siteIdx = idx;
+                const site = sites[idx];
+                addrEl.textContent = site.url;
+                siteNameEl.textContent = site.name;
+                siteCatEl.textContent = `[${site.category}]`;
+                contentEl.innerHTML = '';
+                connectProgress = 0;
+                fillEl.style.width = '0%';
+                pctEl.textContent = '0%';
+                updateRoute();
+
+                if (connectInterval) clearInterval(connectInterval);
+                const speedMultiplier = SystemState.getSpeedMultiplier('network');
+                connectInterval = setInterval(() => {
+                    const t = SystemState.getThrottle(['network', 'bandwidth']);
+                    connectProgress += (Math.random() * 8 + 2) * t;
+                    if (connectProgress >= 100) {
+                        connectProgress = 100;
+                        fillEl.style.width = '100%';
+                        pctEl.textContent = '100%';
+                        clearInterval(connectInterval);
+                        const lines = siteContents[idx] || siteContents[0];
+                        lines.forEach((line, i) => {
+                            setTimeout(() => {
+                                const div = document.createElement('div');
+                                div.className = 'dw-content-line';
+                                div.textContent = line;
+                                contentEl.appendChild(div);
+                            }, i * 400);
+                        });
+                    } else {
+                        fillEl.style.width = connectProgress + '%';
+                        pctEl.textContent = Math.floor(connectProgress) + '%';
+                    }
+                }, Math.max(80, 200 / speedMultiplier));
+            };
+
+            container.querySelector('#dw-sites').addEventListener('click', (e) => {
+                const item = e.target.closest('.dw-site-item');
+                if (!item) return;
+                container.querySelectorAll('.dw-site-item').forEach(x => x.classList.remove('active'));
+                item.classList.add('active');
+                connectTo(parseInt(item.dataset.idx));
+            });
+
+            const autoCycle = setInterval(() => {
+                const nextIdx = (siteIdx + 1) % sites.length;
+                container.querySelectorAll('.dw-site-item').forEach(x => x.classList.remove('active'));
+                const items = container.querySelectorAll('.dw-site-item');
+                if (items[nextIdx]) items[nextIdx].classList.add('active');
+                connectTo(nextIdx);
+            }, 15000);
+
+            container.querySelector('.dw-site-item').classList.add('active');
+            connectTo(0);
+
+            container.cleanup = () => {
+                if (connectInterval) clearInterval(connectInterval);
+                clearInterval(autoCycle);
+                SystemState.clearBoost('darkweb');
             };
         }
     },
