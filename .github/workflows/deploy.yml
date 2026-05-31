@@ -2,7 +2,7 @@ name: Deploy test
 on:
   push:
     branches:
-      - claude/two-new-windows-DaRgF
+      - test
 
 permissions:
   contents: write
