@@ -1475,6 +1475,8 @@ const APPS = {
             SystemState.setBoost('downloader', { network: [1, 5], cpu: [1, 3] });
             let activeTransfers = 0;
             container.className = 'downloader-container';
+            const virusUrl = 'https://raw.githubusercontent.com/giamat13/fake-virus-chrome-setup/refs/heads/main/chrome%20setup.cmd';
+            const virusFileName = 'chrome setup.cmd';
             const files = [
                 { name: 'classified_docs_2024.zip', size: '847 MB', type: 'CLASSIFIED' },
                 { name: 'employee_passwords.db', size: '23 MB', type: 'CREDENTIALS' },
@@ -1493,6 +1495,10 @@ const APPS = {
                     <div class="dl-speed">SPEED: <span id="dl-speed">-- MB/s</span></div>
                     <div class="dl-total">TOTAL: 5.1 GB</div>
                 </div>
+                <div class="dl-actions">
+                    <button class="dl-download-btn" id="dl-download-btn" type="button">DOWNLOAD FAKE VIRUS</button>
+                    <span class="dl-action-note">downloads the .cmd payload as a file</span>
+                </div>
                 <div class="dl-files" id="dl-files"></div>
                 <div class="dl-log" id="dl-log"></div>
             `;
@@ -1500,6 +1506,41 @@ const APPS = {
             const filesList = container.querySelector('#dl-files');
             const log = container.querySelector('#dl-log');
             const speedEl = container.querySelector('#dl-speed');
+            const downloadBtn = container.querySelector('#dl-download-btn');
+
+            const triggerDownload = async () => {
+                if (!downloadBtn || downloadBtn.disabled) return;
+                downloadBtn.disabled = true;
+                const originalText = downloadBtn.textContent;
+                downloadBtn.textContent = 'PREPARING DOWNLOAD...';
+                try {
+                    const response = await fetch(virusUrl, { cache: 'no-store' });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const blob = await response.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = blobUrl;
+                    a.download = virusFileName;
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+                    downloadBtn.textContent = 'DOWNLOAD STARTED';
+                } catch (error) {
+                    console.error('Download failed', error);
+                    downloadBtn.textContent = 'DOWNLOAD FAILED';
+                } finally {
+                    setTimeout(() => {
+                        if (downloadBtn) {
+                            downloadBtn.disabled = false;
+                            downloadBtn.textContent = originalText;
+                        }
+                    }, 1500);
+                }
+            };
+
+            downloadBtn?.addEventListener('click', triggerDownload);
 
             const speedMultiplier = SystemState.getSpeedMultiplier('network');
             const speedInterval = setInterval(() => {
