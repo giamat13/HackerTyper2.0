@@ -469,6 +469,116 @@ function showSecretOverlay(className, html, duration = 4000) {
     overlay.addEventListener('click', dismiss);
 }
 
+// ==================== SECRET EFFECTS ====================
+// Shared effect payloads so keyboard, touch and gamepad shortcuts stay in sync.
+const SecretEffects = {
+    denied() {
+        showSecretOverlay('overlay-denied', `
+            <div class="so-big-icon">🚫</div>
+            <div class="so-title">ACCESS DENIED</div>
+            <div class="so-sub">INSUFFICIENT CLEARANCE LEVEL</div>
+            <div class="so-code">ERROR CODE: 403-OMEGA-7</div>
+            <div class="so-code">THIS INCIDENT HAS BEEN LOGGED</div>
+        `, 4000);
+    },
+    accepted() {
+        showSecretOverlay('overlay-accepted', `
+            <div class="so-big-icon">✅</div>
+            <div class="so-title">ACCESS ACCEPTED</div>
+            <div class="so-sub">WELCOME BACK, AGENT</div>
+            <div class="so-code">CLEARANCE: LEVEL 5 — OMEGA BLACK</div>
+            <div class="so-code">ALL SYSTEMS UNLOCKED</div>
+        `, 4000);
+    },
+    destruct(abortLabel = 'PRESS ANYWHERE TO ABORT') {
+        const existing = document.querySelector('.secret-overlay');
+        if (existing) existing.remove();
+        const overlay = document.createElement('div');
+        overlay.className = 'secret-overlay overlay-destruct';
+        let count = 5;
+        overlay.innerHTML = `
+            <div class="so-big-icon">☢️</div>
+            <div class="so-title">SELF-DESTRUCT INITIATED</div>
+            <div class="so-countdown" id="so-countdown">5</div>
+            <div class="so-sub">ALL CLASSIFIED DATA WILL BE PURGED</div>
+            <div class="so-code">${abortLabel}</div>
+        `;
+        document.body.appendChild(overlay);
+        const cd = overlay.querySelector('#so-countdown');
+        const interval = setInterval(() => {
+            count--;
+            cd.textContent = count;
+            if (count <= 0) {
+                clearInterval(interval);
+                overlay.innerHTML = `
+                    <div class="so-big-icon">✋</div>
+                    <div class="so-title">SEQUENCE ABORTED</div>
+                    <div class="so-sub">FAILSAFE PROTOCOL ENGAGED</div>
+                    <div class="so-code">DATA INTEGRITY PRESERVED</div>
+                `;
+                setTimeout(() => overlay.remove(), 2500);
+            }
+        }, 1000);
+        overlay.addEventListener('click', () => { clearInterval(interval); overlay.remove(); });
+        return overlay;
+    },
+    encrypt() {
+        showSecretOverlay('overlay-encrypt', `
+            <div class="so-big-icon">🔐</div>
+            <div class="so-title">ENCRYPTING ALL FILES</div>
+            <div class="so-sub">AES-256-GCM ENCRYPTION IN PROGRESS</div>
+            <div class="so-enc-progress"><div class="so-enc-fill"></div></div>
+            <div class="so-code">SECURING: /classified /financial /personal</div>
+            <div class="so-code">DO NOT DISCONNECT</div>
+        `, 5000);
+    },
+    fbi() {
+        showSecretOverlay('overlay-fbi', `
+            <div class="so-fbi-badge">🏛️</div>
+            <div class="so-fbi-label">FEDERAL BUREAU OF INVESTIGATION</div>
+            <div class="so-title">⚠️ FBI MONITORING DETECTED ⚠️</div>
+            <div class="so-sub">YOUR SESSION IS BEING TRACED</div>
+            <div class="so-code">CASE NUMBER: 2024-CYB-774521-A</div>
+            <div class="so-code">IP ADDRESS LOGGED — COUNTERMEASURES ACTIVE</div>
+            <div class="so-code">BOUNCING THROUGH 47 PROXY NODES...</div>
+        `, 5000);
+    },
+    satellite() {
+        showSecretOverlay('overlay-satellite', `
+            <div class="so-big-icon">🛰️</div>
+            <div class="so-title">SATELLITE UPLINK ESTABLISHED</div>
+            <div class="so-sub">KEYHOLE-19 ORBITAL PLATFORM CONNECTED</div>
+            <div class="so-code">BANDWIDTH: 47.2 TB/s</div>
+            <div class="so-code">LAT: 23.4°N | LONG: 54.7°E | ALT: 400km</div>
+            <div class="so-code">ENCRYPTION: QUANTUM-SAFE LATTICE</div>
+        `, 4000);
+    },
+    trace() {
+        showSecretOverlay('overlay-trace', `
+            <div class="so-big-icon">🌐</div>
+            <div class="so-title">CONNECTION TRACE ACTIVE</div>
+            <div class="so-sub">ROUTING THROUGH 47 ANONYMOUS NODES</div>
+            <div class="so-trace-list">
+                <div class="so-trace-hop">HOP 01: 10.0.0.1 → Moscow, RU [45ms]</div>
+                <div class="so-trace-hop">HOP 02: 185.x.x.x → Tokyo, JP [132ms]</div>
+                <div class="so-trace-hop">HOP 03: 103.x.x.x → São Paulo, BR [289ms]</div>
+                <div class="so-trace-hop">HOP 04: 41.x.x.x → Lagos, NG [441ms]</div>
+                <div class="so-trace-hop">HOP 47: [CLASSIFIED] → [CLASSIFIED]</div>
+            </div>
+            <div class="so-code">✓ IDENTITY PROTECTED — UNTRACEABLE</div>
+        `, 6000);
+    },
+    admin() {
+        showSecretOverlay('overlay-admin', `
+            <div class="so-big-icon">👑</div>
+            <div class="so-title">ADMIN OVERRIDE ACTIVATED</div>
+            <div class="so-sub">ROOT ACCESS GRANTED — ALL PERMISSIONS UNLOCKED</div>
+            <div class="so-code">$ sudo su — nexus_master</div>
+            <div class="so-code">KERNEL: UNRESTRICTED MODE ENGAGED</div>
+        `, 4000);
+    }
+};
+
 // ==================== SHORTCUT MANAGER ====================
 // register(key, count, windowMs, callback)
 // windowMs = all 'count' presses must happen within this many milliseconds
@@ -517,115 +627,14 @@ const ShortcutManager = {
 const MS_PER_PRESS = 500; // comfortable but intentional — adjust if needed
 const w = (count) => count * MS_PER_PRESS;
 
-ShortcutManager.register('control', 3, w(3), () => {
-    showSecretOverlay('overlay-denied', `
-        <div class="so-big-icon">🚫</div>
-        <div class="so-title">ACCESS DENIED</div>
-        <div class="so-sub">INSUFFICIENT CLEARANCE LEVEL</div>
-        <div class="so-code">ERROR CODE: 403-OMEGA-7</div>
-        <div class="so-code">THIS INCIDENT HAS BEEN LOGGED</div>
-    `, 4000);
-});
-
-ShortcutManager.register('shift', 3, w(3), () => {
-    showSecretOverlay('overlay-accepted', `
-        <div class="so-big-icon">✅</div>
-        <div class="so-title">ACCESS ACCEPTED</div>
-        <div class="so-sub">WELCOME BACK, AGENT</div>
-        <div class="so-code">CLEARANCE: LEVEL 5 — OMEGA BLACK</div>
-        <div class="so-code">ALL SYSTEMS UNLOCKED</div>
-    `, 4000);
-});
-
-ShortcutManager.register('alt', 3, w(3), () => {
-    const overlay = document.createElement('div');
-    overlay.className = 'secret-overlay overlay-destruct';
-    let count = 5;
-    overlay.innerHTML = `
-        <div class="so-big-icon">☢️</div>
-        <div class="so-title">SELF-DESTRUCT INITIATED</div>
-        <div class="so-countdown" id="so-countdown">5</div>
-        <div class="so-sub">ALL CLASSIFIED DATA WILL BE PURGED</div>
-        <div class="so-code">PRESS ANYWHERE TO ABORT</div>
-    `;
-    document.body.appendChild(overlay);
-    const cd = overlay.querySelector('#so-countdown');
-    const interval = setInterval(() => {
-        count--;
-        cd.textContent = count;
-        if (count <= 0) {
-            clearInterval(interval);
-            overlay.innerHTML = `
-                <div class="so-big-icon">✋</div>
-                <div class="so-title">SEQUENCE ABORTED</div>
-                <div class="so-sub">FAILSAFE PROTOCOL ENGAGED</div>
-                <div class="so-code">DATA INTEGRITY PRESERVED</div>
-            `;
-            setTimeout(() => overlay.remove(), 2500);
-        }
-    }, 1000);
-    overlay.addEventListener('click', () => { clearInterval(interval); overlay.remove(); });
-});
-
-ShortcutManager.register('z', 3, w(3), () => {
-    showSecretOverlay('overlay-encrypt', `
-        <div class="so-big-icon">🔐</div>
-        <div class="so-title">ENCRYPTING ALL FILES</div>
-        <div class="so-sub">AES-256-GCM ENCRYPTION IN PROGRESS</div>
-        <div class="so-enc-progress"><div class="so-enc-fill"></div></div>
-        <div class="so-code">SECURING: /classified /financial /personal</div>
-        <div class="so-code">DO NOT DISCONNECT</div>
-    `, 5000);
-});
-
-ShortcutManager.register('x', 4, w(4), () => {
-    showSecretOverlay('overlay-fbi', `
-        <div class="so-fbi-badge">🏛️</div>
-        <div class="so-fbi-label">FEDERAL BUREAU OF INVESTIGATION</div>
-        <div class="so-title">⚠️ FBI MONITORING DETECTED ⚠️</div>
-        <div class="so-sub">YOUR SESSION IS BEING TRACED</div>
-        <div class="so-code">CASE NUMBER: 2024-CYB-774521-A</div>
-        <div class="so-code">IP ADDRESS LOGGED — COUNTERMEASURES ACTIVE</div>
-        <div class="so-code">BOUNCING THROUGH 47 PROXY NODES...</div>
-    `, 5000);
-});
-
-ShortcutManager.register(' ', 5, w(5), () => {
-    showSecretOverlay('overlay-satellite', `
-        <div class="so-big-icon">🛰️</div>
-        <div class="so-title">SATELLITE UPLINK ESTABLISHED</div>
-        <div class="so-sub">KEYHOLE-19 ORBITAL PLATFORM CONNECTED</div>
-        <div class="so-code">BANDWIDTH: 47.2 TB/s</div>
-        <div class="so-code">LAT: 23.4°N | LONG: 54.7°E | ALT: 400km</div>
-        <div class="so-code">ENCRYPTION: QUANTUM-SAFE LATTICE</div>
-    `, 4000);
-});
-
-ShortcutManager.register('q', 3, w(3), () => {
-    showSecretOverlay('overlay-trace', `
-        <div class="so-big-icon">🌐</div>
-        <div class="so-title">CONNECTION TRACE ACTIVE</div>
-        <div class="so-sub">ROUTING THROUGH 47 ANONYMOUS NODES</div>
-        <div class="so-trace-list">
-            <div class="so-trace-hop">HOP 01: 10.0.0.1 → Moscow, RU [45ms]</div>
-            <div class="so-trace-hop">HOP 02: 185.x.x.x → Tokyo, JP [132ms]</div>
-            <div class="so-trace-hop">HOP 03: 103.x.x.x → São Paulo, BR [289ms]</div>
-            <div class="so-trace-hop">HOP 04: 41.x.x.x → Lagos, NG [441ms]</div>
-            <div class="so-trace-hop">HOP 47: [CLASSIFIED] → [CLASSIFIED]</div>
-        </div>
-        <div class="so-code">✓ IDENTITY PROTECTED — UNTRACEABLE</div>
-    `, 6000);
-});
-
-ShortcutManager.register('capslock', 3, w(3), () => {
-    showSecretOverlay('overlay-admin', `
-        <div class="so-big-icon">👑</div>
-        <div class="so-title">ADMIN OVERRIDE ACTIVATED</div>
-        <div class="so-sub">ROOT ACCESS GRANTED — ALL PERMISSIONS UNLOCKED</div>
-        <div class="so-code">$ sudo su — nexus_master</div>
-        <div class="so-code">KERNEL: UNRESTRICTED MODE ENGAGED</div>
-    `, 4000);
-});
+ShortcutManager.register('control', 3, w(3), () => SecretEffects.denied());
+ShortcutManager.register('shift', 3, w(3), () => SecretEffects.accepted());
+ShortcutManager.register('alt', 3, w(3), () => SecretEffects.destruct());
+ShortcutManager.register('z', 3, w(3), () => SecretEffects.encrypt());
+ShortcutManager.register('x', 4, w(4), () => SecretEffects.fbi());
+ShortcutManager.register(' ', 5, w(5), () => SecretEffects.satellite());
+ShortcutManager.register('q', 3, w(3), () => SecretEffects.trace());
+ShortcutManager.register('capslock', 3, w(3), () => SecretEffects.admin());
 
 // ==================== TUTORIAL MANAGER ====================
 class TutorialManager {
@@ -720,6 +729,14 @@ class TutorialManager {
                     <div class="tut-shortcut"><span class="tut-keys">Tap/Click × 8</span><span class="tut-effect">SATELLITE</span></div>
                     <div class="tut-shortcut"><span class="tut-keys">Tap/Click × 9</span><span class="tut-effect">TRACE</span></div>
                     <div class="tut-shortcut"><span class="tut-keys">Tap/Click × 10</span><span class="tut-effect accepted">ADMIN</span></div>
+                </div>
+                <div class="tut-touch-shortcuts">
+                    <div class="tut-touch-title">🎮 CONTROLLER SHORTCUTS (plug in any gamepad — press BACK/SELECT for the full scheme):</div>
+                    <div class="tut-shortcut"><span class="tut-keys">D-Pad / Stick</span><span class="tut-effect">Navigate apps · A opens · B closes</span></div>
+                    <div class="tut-shortcut"><span class="tut-keys">X × 3</span><span class="tut-effect denied">ACCESS DENIED</span></div>
+                    <div class="tut-shortcut"><span class="tut-keys">Y × 3</span><span class="tut-effect accepted">ACCESS ACCEPTED</span></div>
+                    <div class="tut-shortcut"><span class="tut-keys">LB·RB·LB·RB</span><span class="tut-effect danger">SELF-DESTRUCT</span></div>
+                    <div class="tut-shortcut"><span class="tut-keys">↑↑↓↓←→←→ B A</span><span class="tut-effect accepted">ADMIN OVERRIDE (Konami)</span></div>
                 </div>
                 <span class="tut-tip">⚡ TIP: All shortcuts require rapid repeated presses/taps/clicks — they look accidental.</span>`
             },
@@ -2942,112 +2959,245 @@ const TouchShortcutManager = {
 
     triggerShortcut(count) {
         switch(count) {
-            case 3:
-                showSecretOverlay('overlay-denied', `
-                    <div class="so-big-icon">🚫</div>
-                    <div class="so-title">ACCESS DENIED</div>
-                    <div class="so-sub">INSUFFICIENT CLEARANCE LEVEL</div>
-                    <div class="so-code">ERROR CODE: 403-OMEGA-7</div>
-                    <div class="so-code">THIS INCIDENT HAS BEEN LOGGED</div>
-                `, 4000);
+            case 3: SecretEffects.denied(); break;
+            case 4: SecretEffects.accepted(); break;
+            case 5: {
+                const overlay = SecretEffects.destruct('TAP ANYWHERE TO ABORT');
+                overlay.addEventListener('touchstart', () => overlay.remove());
                 break;
-            case 4:
-                showSecretOverlay('overlay-accepted', `
-                    <div class="so-big-icon">✅</div>
-                    <div class="so-title">ACCESS ACCEPTED</div>
-                    <div class="so-sub">WELCOME BACK, AGENT</div>
-                    <div class="so-code">CLEARANCE: LEVEL 5 — OMEGA BLACK</div>
-                    <div class="so-code">ALL SYSTEMS UNLOCKED</div>
-                `, 4000);
-                break;
-            case 5:
-                const overlay = document.createElement('div');
-                overlay.className = 'secret-overlay overlay-destruct';
-                let countdown = 5;
-                overlay.innerHTML = `
-                    <div class="so-big-icon">☢️</div>
-                    <div class="so-title">SELF-DESTRUCT INITIATED</div>
-                    <div class="so-countdown" id="so-countdown">5</div>
-                    <div class="so-sub">ALL CLASSIFIED DATA WILL BE PURGED</div>
-                    <div class="so-code">TAP ANYWHERE TO ABORT</div>
-                `;
-                document.body.appendChild(overlay);
-                const cd = overlay.querySelector('#so-countdown');
-                const interval = setInterval(() => {
-                    countdown--;
-                    cd.textContent = countdown;
-                    if (countdown <= 0) {
-                        clearInterval(interval);
-                        overlay.innerHTML = `
-                            <div class="so-big-icon">✋</div>
-                            <div class="so-title">SEQUENCE ABORTED</div>
-                            <div class="so-sub">FAILSAFE PROTOCOL ENGAGED</div>
-                            <div class="so-code">DATA INTEGRITY PRESERVED</div>
-                        `;
-                        setTimeout(() => overlay.remove(), 2500);
-                    }
-                }, 1000);
-                overlay.addEventListener('touchstart', () => { clearInterval(interval); overlay.remove(); });
-                break;
-            case 6:
-                showSecretOverlay('overlay-encrypt', `
-                    <div class="so-big-icon">🔐</div>
-                    <div class="so-title">ENCRYPTING ALL FILES</div>
-                    <div class="so-sub">AES-256-GCM ENCRYPTION IN PROGRESS</div>
-                    <div class="so-enc-progress"><div class="so-enc-fill"></div></div>
-                    <div class="so-code">SECURING: /classified /financial /personal</div>
-                    <div class="so-code">DO NOT DISCONNECT</div>
-                `, 5000);
-                break;
-            case 7:
-                showSecretOverlay('overlay-fbi', `
-                    <div class="so-fbi-badge">🏛️</div>
-                    <div class="so-fbi-label">FEDERAL BUREAU OF INVESTIGATION</div>
-                    <div class="so-title">⚠️ FBI MONITORING DETECTED ⚠️</div>
-                    <div class="so-sub">YOUR SESSION IS BEING TRACED</div>
-                    <div class="so-code">CASE NUMBER: 2024-CYB-774521-A</div>
-                    <div class="so-code">IP ADDRESS LOGGED — COUNTERMEASURES ACTIVE</div>
-                    <div class="so-code">BOUNCING THROUGH 47 PROXY NODES...</div>
-                `, 5000);
-                break;
-            case 8:
-                showSecretOverlay('overlay-satellite', `
-                    <div class="so-big-icon">🛰️</div>
-                    <div class="so-title">SATELLITE UPLINK ESTABLISHED</div>
-                    <div class="so-sub">KEYHOLE-19 ORBITAL PLATFORM CONNECTED</div>
-                    <div class="so-code">BANDWIDTH: 47.2 TB/s</div>
-                    <div class="so-code">LAT: 23.4°N | LONG: 54.7°E | ALT: 400km</div>
-                    <div class="so-code">ENCRYPTION: QUANTUM-SAFE LATTICE</div>
-                `, 4000);
-                break;
-            case 9:
-                showSecretOverlay('overlay-trace', `
-                    <div class="so-big-icon">🌐</div>
-                    <div class="so-title">CONNECTION TRACE ACTIVE</div>
-                    <div class="so-sub">ROUTING THROUGH 47 ANONYMOUS NODES</div>
-                    <div class="so-trace-list">
-                        <div class="so-trace-hop">HOP 01: 10.0.0.1 → Moscow, RU [45ms]</div>
-                        <div class="so-trace-hop">HOP 02: 185.x.x.x → Tokyo, JP [132ms]</div>
-                        <div class="so-trace-hop">HOP 03: 103.x.x.x → São Paulo, BR [289ms]</div>
-                        <div class="so-trace-hop">HOP 04: 41.x.x.x → Lagos, NG [441ms]</div>
-                        <div class="so-trace-hop">HOP 47: [CLASSIFIED] → [CLASSIFIED]</div>
-                    </div>
-                    <div class="so-code">✓ IDENTITY PROTECTED — UNTRACEABLE</div>
-                `, 6000);
-                break;
-            case 10:
-                showSecretOverlay('overlay-admin', `
-                    <div class="so-big-icon">👑</div>
-                    <div class="so-title">ADMIN OVERRIDE ACTIVATED</div>
-                    <div class="so-sub">ROOT ACCESS GRANTED — ALL PERMISSIONS UNLOCKED</div>
-                    <div class="so-code">$ sudo su — nexus_master</div>
-                    <div class="so-code">KERNEL: UNRESTRICTED MODE ENGAGED</div>
-                `, 4000);
-                break;
+            }
+            case 6: SecretEffects.encrypt(); break;
+            case 7: SecretEffects.fbi(); break;
+            case 8: SecretEffects.satellite(); break;
+            case 9: SecretEffects.trace(); break;
+            case 10: SecretEffects.admin(); break;
         }
+    }
+};
+
+// ==================== GAMEPAD MANAGER ====================
+// Adds full controller support (Xbox / PlayStation / generic "standard" pads).
+//   D-pad ..................... move the app selector along the taskbar
+//   A (cross) ................. click whatever the cursor is on, else open the highlighted app
+//   B (circle) ................ close the active window
+//   START ..................... open Settings
+//   BACK/SELECT ............... show this controller help
+//   Right Trigger (RT) ........ "type" in the active TyperScene window
+//   Left stick ................ moves the on-screen cursor
+//
+// Secret controller combos (the equivalent of the keyboard easter eggs):
+//   X X X ..................... ACCESS DENIED
+//   Y Y Y ..................... ACCESS ACCEPTED
+//   LB LB LB .................. ENCRYPT FILES
+//   RB RB RB .................. SATELLITE UPLINK
+//   LT LT LT .................. FBI WARNING
+//   RT RT RT .................. CONNECTION TRACE
+//   LB RB LB RB ............... SELF-DESTRUCT
+//   ↑ ↑ ↓ ↓ ← → ← → B A ....... ADMIN OVERRIDE (Konami code)
+const GamepadManager = {
+    os: null,
+    index: null,
+    prev: [],            // previous pressed-state per button
+    rafId: null,
+    selectedIndex: 0,
+    seq: [],             // recent button names, for combo detection
+    seqExpire: 0,
+    seqWindow: 1500,     // ms before the combo buffer resets
+    deadzone: 0.5,
+
+    // "standard" gamepad mapping → friendly names
+    NAMES: ['a','b','x','y','lb','rb','lt','rt','back','start','ls','rs','up','down','left','right'],
+
+    COMBOS: [
+        { seq: ['up','up','down','down','left','right','left','right','b','a'], run: () => SecretEffects.admin() },
+        { seq: ['lb','rb','lb','rb'], run: () => SecretEffects.destruct() },
+        { seq: ['x','x','x'], run: () => SecretEffects.denied() },
+        { seq: ['y','y','y'], run: () => SecretEffects.accepted() },
+        { seq: ['lb','lb','lb'], run: () => SecretEffects.encrypt() },
+        { seq: ['rb','rb','rb'], run: () => SecretEffects.satellite() },
+        { seq: ['lt','lt','lt'], run: () => SecretEffects.fbi() },
+        { seq: ['rt','rt','rt'], run: () => SecretEffects.trace() },
+    ],
+
+    init(os) {
+        this.os = os;
+        window.addEventListener('gamepadconnected', (e) => {
+            this.index = e.gamepad.index;
+            showSecretOverlay('overlay-accepted', `
+                <div class="so-big-icon">🎮</div>
+                <div class="so-title">CONTROLLER LINKED</div>
+                <div class="so-sub">${(e.gamepad.id || 'GAMEPAD').toUpperCase().slice(0, 40)}</div>
+                <div class="so-code">PRESS BACK/SELECT FOR THE CONTROL SCHEME</div>
+            `, 3500);
+            this.updateSelection();
+            this.start();
+        });
+        window.addEventListener('gamepaddisconnected', (e) => {
+            if (e.gamepad.index === this.index) {
+                this.index = null;
+                this.stop();
+                this.clearSelection();
+            }
+        });
+    },
+
+    start() {
+        if (this.rafId) return;
+        const loop = () => { this.poll(); this.rafId = requestAnimationFrame(loop); };
+        this.rafId = requestAnimationFrame(loop);
+    },
+
+    stop() {
+        if (this.rafId) cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+    },
+
+    poll() {
+        const pad = (navigator.getGamepads ? navigator.getGamepads() : [])[this.index];
+        if (!pad) return;
+
+        // --- Buttons: detect rising edges ---
+        pad.buttons.forEach((btn, i) => {
+            const pressed = btn.pressed || btn.value > 0.5;
+            if (pressed && !this.prev[i]) this.onButtonDown(this.NAMES[i] || `b${i}`);
+            this.prev[i] = pressed;
+        });
+
+        // --- Left stick → nudge the on-screen cursor (taskbar nav is D-pad only) ---
+        this.nudgeCursor(pad.axes[0] || 0, pad.axes[1] || 0);
+    },
+
+    onButtonDown(name) {
+        this.pushSeq(name);
+
+        switch (name) {
+            case 'left':  case 'up':    this.moveSelection(-1); break;
+            case 'right': case 'down':  this.moveSelection(1); break;
+            case 'a':     this.activateSelected(); break;
+            case 'b':     this.closeActiveWindow(); break;
+            case 'start': this.openApp('settings'); break;
+            case 'back':  this.showHelp(); break;
+            case 'rt':    this.typeInTyper(); break;
+        }
+    },
+
+    // --- Combo detection ---
+    pushSeq(name) {
+        const now = Date.now();
+        if (now > this.seqExpire) this.seq = [];
+        this.seqExpire = now + this.seqWindow;
+        this.seq.push(name);
+        if (this.seq.length > 12) this.seq.shift();
+
+        for (const combo of this.COMBOS) {
+            const tail = this.seq.slice(-combo.seq.length);
+            if (tail.length === combo.seq.length && tail.every((v, i) => v === combo.seq[i])) {
+                this.seq = [];
+                combo.run();
+                return;
+            }
+        }
+    },
+
+    // --- Taskbar navigation ---
+    icons() {
+        return Array.from(document.querySelectorAll('#taskbar .app-icon'));
+    },
+    moveSelection(dir) {
+        const icons = this.icons();
+        if (!icons.length) return;
+        this.selectedIndex = (this.selectedIndex + dir + icons.length) % icons.length;
+        this.updateSelection();
+    },
+    updateSelection() {
+        const icons = this.icons();
+        icons.forEach((el, i) => el.classList.toggle('gamepad-selected', i === this.selectedIndex));
+        const sel = icons[this.selectedIndex];
+        if (sel) sel.scrollIntoView({ block: 'nearest', inline: 'center' });
+    },
+    clearSelection() {
+        this.icons().forEach(el => el.classList.remove('gamepad-selected'));
+    },
+    activateSelected() {
+        // If the cursor is hovering over something interactive, click that;
+        // otherwise fall back to the highlighted taskbar app.
+        const cursor = this.os.cursor;
+        const x = parseFloat(cursor && cursor.style.left);
+        const y = parseFloat(cursor && cursor.style.top);
+        const under = (!isNaN(x) && !isNaN(y)) ? document.elementFromPoint(x, y) : null;
+
+        const isBackground = !under || under === document.body
+            || under.id === 'desktop' || under.classList.contains('crt-overlay')
+            || under.classList.contains('cursor');
+
+        if (!isBackground) {
+            const interactive = under.closest('button, a, select, input, label, [data-action], [data-app], .app-icon, .window-btn, .window-titlebar');
+            (interactive || under).click();
+            return;
+        }
+
+        const sel = this.icons()[this.selectedIndex];
+        if (sel) sel.click();
+    },
+    openApp(name) {
+        const icon = document.querySelector(`[data-app="${name}"]`);
+        if (icon && !this.os.windowManager.windows.has(name)) icon.click();
+    },
+    closeActiveWindow() {
+        const wm = this.os.windowManager;
+        if (wm.activeWindow && !document.getElementById('tutorial-overlay')) wm.close(wm.activeWindow);
+    },
+
+    // --- Cursor + TyperScene integration ---
+    nudgeCursor(ax, ay) {
+        const cursor = this.os.cursor;
+        if (!cursor) return;
+        if (Math.abs(ax) < this.deadzone && Math.abs(ay) < this.deadzone) return;
+        const speed = 5;
+        let x = parseFloat(cursor.style.left) || window.innerWidth / 2;
+        let y = parseFloat(cursor.style.top) || window.innerHeight / 2;
+        x = Math.max(0, Math.min(window.innerWidth, x + ax * speed));
+        y = Math.max(0, Math.min(window.innerHeight, y + ay * speed));
+        cursor.style.left = x + 'px';
+        cursor.style.top = y + 'px';
+    },
+    typeInTyper() {
+        // Reuse TyperScene's own keydown handler by dispatching a printable key,
+        // but only when a TyperScene window is the active one.
+        const active = document.querySelector('.window.active .typerscene-container');
+        if (!active) return;
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', bubbles: true }));
+    },
+
+    showHelp() {
+        showSecretOverlay('overlay-accepted secret-overlay-help', `
+            <div class="so-big-icon">🎮</div>
+            <div class="so-title">CONTROLLER SCHEME</div>
+            <div class="gp-help-grid">
+                <div class="gp-row"><span class="gp-keys">D-Pad</span><span>Move app selector</span></div>
+                <div class="gp-row"><span class="gp-keys">L-Stick</span><span>Move the cursor</span></div>
+                <div class="gp-row"><span class="gp-keys">A</span><span>Click cursor target / open selected app</span></div>
+                <div class="gp-row"><span class="gp-keys">B</span><span>Close active window</span></div>
+                <div class="gp-row"><span class="gp-keys">START</span><span>Open Settings</span></div>
+                <div class="gp-row"><span class="gp-keys">BACK</span><span>This help screen</span></div>
+                <div class="gp-row"><span class="gp-keys">RT</span><span>Type in TyperScene</span></div>
+            </div>
+            <div class="so-sub" style="margin-top:14px;">CLASSIFIED COMBOS</div>
+            <div class="gp-help-grid">
+                <div class="gp-row"><span class="gp-keys">X·X·X</span><span>Access denied</span></div>
+                <div class="gp-row"><span class="gp-keys">Y·Y·Y</span><span>Access accepted</span></div>
+                <div class="gp-row"><span class="gp-keys">LB·LB·LB</span><span>Encrypt files</span></div>
+                <div class="gp-row"><span class="gp-keys">RB·RB·RB</span><span>Satellite uplink</span></div>
+                <div class="gp-row"><span class="gp-keys">LT·LT·LT</span><span>FBI warning</span></div>
+                <div class="gp-row"><span class="gp-keys">RT·RT·RT</span><span>Connection trace</span></div>
+                <div class="gp-row"><span class="gp-keys">LB·RB·LB·RB</span><span>Self-destruct</span></div>
+                <div class="gp-row"><span class="gp-keys">↑↑↓↓←→←→ B A</span><span>Admin override</span></div>
+            </div>
+        `, 8000);
     }
 };
 
 // ==================== START SYSTEM ====================
 TouchShortcutManager.init();
 const OS = new CyberNexusOS();
+GamepadManager.init(OS);

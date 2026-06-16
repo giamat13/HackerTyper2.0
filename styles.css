@@ -94,6 +94,13 @@ body {
     background: var(--primary); box-shadow: 0 0 10px var(--primary); animation: pulse 2s infinite;
 }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.app-icon.gamepad-selected {
+    background: rgba(0,255,255,0.25);
+    border-color: var(--accent);
+    box-shadow: 0 0 14px var(--accent), inset 0 0 10px rgba(0,255,255,0.4);
+    transform: translateY(-5px);
+}
+.app-icon.gamepad-selected svg { fill: var(--accent); }
 .app-icon svg { width: 26px; height: 26px; fill: var(--primary); }
 .app-label { font-size: 7px; margin-top: 1px; color: var(--primary); text-transform: uppercase; }
 .clock {
@@ -422,6 +429,12 @@ body {
 .overlay-admin { background: radial-gradient(circle at center, #2a2200 0%, #000 70%); border: 4px solid #fa0; box-shadow: inset 0 0 100px rgba(255,200,0,0.2); }
 
 @keyframes destructFlicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.9; } }
+
+/* Controller help overlay */
+.secret-overlay-help .so-title { font-size: 38px; }
+.gp-help-grid { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; width: min(560px, 88vw); }
+.gp-row { display: flex; justify-content: space-between; gap: 16px; font-size: 15px; color: var(--primary); border-bottom: 1px solid rgba(0,255,0,0.15); padding: 4px 0; }
+.gp-row .gp-keys { color: var(--accent); font-weight: bold; letter-spacing: 1px; white-space: nowrap; }
 
 .so-big-icon { font-size: 80px; margin-bottom: 20px; filter: drop-shadow(0 0 30px currentColor); }
 .so-fbi-badge { font-size: 60px; margin-bottom: 8px; }
