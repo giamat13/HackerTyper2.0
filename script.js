@@ -177,6 +177,21 @@ const Utils = {
     }
 };
 
+// ==================== ANALYTICS ====================
+// Thin wrapper around the (optional) Firebase Analytics hook set up in index.html.
+// window._logEvent / window._analytics only exist once the async Firebase module
+// resolves (or never, if analytics is unsupported/blocked) — every call here is
+// a no-op in that case, so the app behaves identically with analytics on or off.
+function trackEvent(name, params = {}) {
+    try {
+        if (typeof window._logEvent === 'function' && window._analytics) {
+            window._logEvent(window._analytics, name, params);
+        }
+    } catch (e) {
+        // Never let analytics failures affect the app itself
+    }
+}
+
 // ==================== SYNTAX HIGHLIGHTER ====================
 const SyntaxHighlighter = {
     patterns: {
@@ -215,22 +230,33 @@ class WindowManager {
         this.activeWindow = null;
     }
 
-    create(appName, appConfig) {
+    // `savedState` (optional) is a previously-persisted {left, top, minimized, maximized}
+    // used to restore a window to where the user left it, e.g. on page reload.
+    create(appName, appConfig, savedState = null) {
         if (this.windows.has(appName)) {
             return this.windows.get(appName);
         }
-        const win = this._buildWindow(appName, appConfig);
+        const win = this._buildWindow(appName, appConfig, savedState);
         this.windows.set(appName, win);
         document.getElementById('desktop').appendChild(win.element);
         this.focus(win);
+        this.saveState();
         return win;
     }
 
-    _buildWindow(appName, appConfig) {
+    _buildWindow(appName, appConfig, savedState) {
         const element = Utils.createElement('div', 'window active');
         element.dataset.app = appName;
-        element.style.left = (100 + Utils.random(0, 200)) + 'px';
-        element.style.top = (50 + Utils.random(0, 100)) + 'px';
+        if (savedState && Number.isFinite(savedState.left) && Number.isFinite(savedState.top)) {
+            // Clamp so a window saved on a larger screen doesn't restore off-screen
+            const left = Math.max(0, Math.min(savedState.left, window.innerWidth - 60));
+            const top = Math.max(0, Math.min(savedState.top, window.innerHeight - 60));
+            element.style.left = left + 'px';
+            element.style.top = top + 'px';
+        } else {
+            element.style.left = (100 + Utils.random(0, 200)) + 'px';
+            element.style.top = (50 + Utils.random(0, 100)) + 'px';
+        }
         element.style.zIndex = ++this.zIndex;
 
         const header = this._buildHeader(appName, appConfig.title);
@@ -247,6 +273,10 @@ class WindowManager {
         if (appConfig.render) {
             appConfig.render(content);
         }
+
+        // Re-apply saved minimize/maximize state without re-triggering a save mid-restore
+        if (savedState && savedState.maximized) this.maximize(win, true);
+        if (savedState && savedState.minimized) this.minimize(win, true);
 
         return win;
     }
@@ -284,8 +314,14 @@ class WindowManager {
             win.element.style.top = (e.clientY - initialY) + 'px';
         };
 
+        const upHandler = () => {
+            if (!isDragging) return;
+            isDragging = false;
+            this.saveState();
+        };
+
         document.addEventListener('mousemove', moveHandler);
-        document.addEventListener('mouseup', () => { isDragging = false; });
+        document.addEventListener('mouseup', upHandler);
     }
 
     _setupControls(win) {
@@ -300,22 +336,56 @@ class WindowManager {
         this.windows.delete(win.appName);
         const icon = document.querySelector(`[data-app="${win.appName}"]`);
         if (icon) icon.classList.remove('active');
+        this.saveState();
     }
 
-    minimize(win) {
+    minimize(win, skipSave = false) {
         win.minimized = !win.minimized;
         win.element.classList.toggle('minimized', win.minimized);
+        if (!skipSave) this.saveState();
     }
 
-    maximize(win) {
+    maximize(win, skipSave = false) {
         win.maximized = !win.maximized;
         win.element.classList.toggle('maximized', win.maximized);
+        if (!skipSave) this.saveState();
     }
 
     focus(win) {
         if (this.activeWindow) this.activeWindow.element.style.zIndex = this.zIndex;
         win.element.style.zIndex = ++this.zIndex;
         this.activeWindow = win;
+    }
+
+    // ---- Persisted window layout (localStorage) ----
+    // Lets the desktop come back exactly as the user left it after a refresh.
+    saveState() {
+        try {
+            const state = Array.from(this.windows.values()).map(win => ({
+                appName: win.appName,
+                left: parseInt(win.element.style.left, 10) || 0,
+                top: parseInt(win.element.style.top, 10) || 0,
+                minimized: win.minimized,
+                maximized: win.maximized
+            }));
+            localStorage.setItem('nexus_window_state', JSON.stringify(state));
+        } catch (e) {
+            // localStorage may be unavailable (private browsing, quota, etc.) — safe to skip
+        }
+    }
+
+    static loadSavedState() {
+        try {
+            const raw = localStorage.getItem('nexus_window_state');
+            const parsed = raw ? JSON.parse(raw) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    clearSavedState() {
+        try { localStorage.removeItem('nexus_window_state'); } catch (e) { /* ignore */ }
     }
 }
 
@@ -473,6 +543,7 @@ function showSecretOverlay(className, html, duration = 4000) {
 // Shared effect payloads so keyboard, touch and gamepad shortcuts stay in sync.
 const SecretEffects = {
     denied() {
+        trackEvent('secret_shortcut', { shortcut: 'access_denied' });
         showSecretOverlay('overlay-denied', `
             <div class="so-big-icon">🚫</div>
             <div class="so-title">ACCESS DENIED</div>
@@ -482,6 +553,7 @@ const SecretEffects = {
         `, 4000);
     },
     accepted() {
+        trackEvent('secret_shortcut', { shortcut: 'access_accepted' });
         showSecretOverlay('overlay-accepted', `
             <div class="so-big-icon">✅</div>
             <div class="so-title">ACCESS ACCEPTED</div>
@@ -491,6 +563,7 @@ const SecretEffects = {
         `, 4000);
     },
     destruct(abortLabel = 'PRESS ANYWHERE TO ABORT') {
+        trackEvent('secret_shortcut', { shortcut: 'self_destruct' });
         const existing = document.querySelector('.secret-overlay');
         if (existing) existing.remove();
         const overlay = document.createElement('div');
@@ -523,6 +596,7 @@ const SecretEffects = {
         return overlay;
     },
     encrypt() {
+        trackEvent('secret_shortcut', { shortcut: 'encrypt_files' });
         showSecretOverlay('overlay-encrypt', `
             <div class="so-big-icon">🔐</div>
             <div class="so-title">ENCRYPTING ALL FILES</div>
@@ -533,6 +607,7 @@ const SecretEffects = {
         `, 5000);
     },
     fbi() {
+        trackEvent('secret_shortcut', { shortcut: 'fbi_warning' });
         showSecretOverlay('overlay-fbi', `
             <div class="so-fbi-badge">🏛️</div>
             <div class="so-fbi-label">FEDERAL BUREAU OF INVESTIGATION</div>
@@ -544,6 +619,7 @@ const SecretEffects = {
         `, 5000);
     },
     satellite() {
+        trackEvent('secret_shortcut', { shortcut: 'satellite_uplink' });
         showSecretOverlay('overlay-satellite', `
             <div class="so-big-icon">🛰️</div>
             <div class="so-title">SATELLITE UPLINK ESTABLISHED</div>
@@ -554,6 +630,7 @@ const SecretEffects = {
         `, 4000);
     },
     trace() {
+        trackEvent('secret_shortcut', { shortcut: 'connection_trace' });
         showSecretOverlay('overlay-trace', `
             <div class="so-big-icon">🌐</div>
             <div class="so-title">CONNECTION TRACE ACTIVE</div>
@@ -569,6 +646,7 @@ const SecretEffects = {
         `, 6000);
     },
     admin() {
+        trackEvent('secret_shortcut', { shortcut: 'admin_override' });
         showSecretOverlay('overlay-admin', `
             <div class="so-big-icon">👑</div>
             <div class="so-title">ADMIN OVERRIDE ACTIVATED</div>
@@ -2735,6 +2813,13 @@ const APPS = {
                     </div>
                     <button id="save-settings" class="settings-save-btn">Save Settings</button>
                 </div>
+                <div class="settings-section">
+                    <h3>Session</h3>
+                    <div class="setting-item">
+                        <label>Window Layout:</label>
+                        <button id="reset-layout" class="settings-save-btn settings-btn-secondary">Reset Saved Layout</button>
+                    </div>
+                </div>
             `;
 
             // Set current values
@@ -2770,6 +2855,18 @@ const APPS = {
                         }
                     }, 100);
                 }
+            });
+
+            container.querySelector('#reset-layout').addEventListener('click', () => {
+                // OS is defined at the bottom of the file; by the time a user can
+                // click this button the whole script has already finished loading.
+                OS.windowManager.clearSavedState();
+                showSecretOverlay('overlay-accepted', `
+                    <div class="so-big-icon">🔄</div>
+                    <div class="so-title">LAYOUT RESET</div>
+                    <div class="so-sub">Saved window positions cleared</div>
+                    <div class="so-code">New windows will open in their default spot</div>
+                `, 2200);
             });
         }
     }
@@ -2829,12 +2926,27 @@ class CyberNexusOS {
         this.setupCursor();
         this.setupClock();
         this.setupKeyboardShortcuts();
+        this.restoreWindows();
 
         // Show tutorial on first visit
         setTimeout(() => {
             const tutorial = new TutorialManager();
             tutorial.start();
         }, 500);
+    }
+
+    // Reopen whatever windows (and positions/min/max state) were open when the
+    // user last left, so a refresh doesn't wipe their desktop layout.
+    restoreWindows() {
+        const saved = WindowManager.loadSavedState();
+        if (!saved.length) return;
+        saved.forEach(state => {
+            const appConfig = APPS[state.appName];
+            const icon = document.querySelector(`[data-app="${state.appName}"]`);
+            if (!appConfig || !icon) return; // app no longer exists — skip it
+            this.windowManager.create(state.appName, appConfig, state);
+            icon.classList.add('active');
+        });
     }
 
     setupTaskbar() {
@@ -2853,6 +2965,7 @@ class CyberNexusOS {
             } else {
                 this.windowManager.create(appName, appConfig);
                 icon.classList.add('active');
+                trackEvent('app_open', { app_name: appName });
             }
         });
     }
@@ -2922,14 +3035,33 @@ const TouchShortcutManager = {
     lastTapTime: 0,
     tapWindow: 500, // ms
 
+    // Long-press → context menu (mobile equivalent of right-click)
+    longPressTimer: null,
+    longPressDuration: 550, // ms
+    longPressStart: null,
+    longPressMoved: false,
+    longPressMoveTolerance: 12, // px of finger drift that cancels the long-press
+
     init() {
         const desktop = document.getElementById('desktop');
         
         // Handle touch events for mobile
         desktop.addEventListener('touchstart', (e) => {
             this.handleTap();
+            this.onTouchStart(e);
+        }, { passive: true });
+
+        desktop.addEventListener('touchmove', (e) => {
+            this.onTouchMove(e);
+        }, { passive: true });
+
+        desktop.addEventListener('touchend', () => {
+            this.cancelLongPress();
         });
-        
+        desktop.addEventListener('touchcancel', () => {
+            this.cancelLongPress();
+        });
+
         // Handle mouse clicks for desktop
         desktop.addEventListener('click', (e) => {
             // Only count left clicks
@@ -2937,6 +3069,107 @@ const TouchShortcutManager = {
                 this.handleTap();
             }
         });
+    },
+
+    // --- Long-press context menu ---
+    onTouchStart(e) {
+        // Don't hijack long-presses inside an open window (dragging, scrolling app content, etc.)
+        if (e.target.closest && e.target.closest('.window')) return;
+        const touch = e.touches && e.touches[0];
+        if (!touch) return;
+
+        this.longPressStart = { x: touch.clientX, y: touch.clientY };
+        this.longPressMoved = false;
+        this.cancelLongPress();
+        this.longPressTimer = setTimeout(() => {
+            if (this.longPressMoved) return;
+            if (navigator.vibrate) navigator.vibrate(15);
+            this.showContextMenu(this.longPressStart);
+        }, this.longPressDuration);
+    },
+
+    onTouchMove(e) {
+        if (!this.longPressTimer || !this.longPressStart) return;
+        const touch = e.touches && e.touches[0];
+        if (!touch) return;
+        const dx = touch.clientX - this.longPressStart.x;
+        const dy = touch.clientY - this.longPressStart.y;
+        if (Math.hypot(dx, dy) > this.longPressMoveTolerance) {
+            this.longPressMoved = true;
+            this.cancelLongPress();
+        }
+    },
+
+    cancelLongPress() {
+        if (this.longPressTimer) {
+            clearTimeout(this.longPressTimer);
+            this.longPressTimer = null;
+        }
+    },
+
+    showContextMenu(pos) {
+        const existing = document.getElementById('touch-context-menu');
+        if (existing) existing.remove();
+
+        const menu = Utils.createElement('div', 'touch-context-menu');
+        menu.id = 'touch-context-menu';
+        menu.innerHTML = `
+            <button type="button" data-action="settings">⚙️ Settings</button>
+            <button type="button" data-action="reset-layout">🔄 Reset Window Layout</button>
+            <button type="button" data-action="close-all">✖ Close All Windows</button>
+            <button type="button" data-action="tutorial">📖 Show Tutorial</button>
+        `;
+        document.body.appendChild(menu);
+
+        // Clamp to viewport now that we know the menu's real size
+        const rect = menu.getBoundingClientRect();
+        const x = Math.max(8, Math.min(pos.x, window.innerWidth - rect.width - 8));
+        const y = Math.max(8, Math.min(pos.y, window.innerHeight - rect.height - 8));
+        menu.style.left = x + 'px';
+        menu.style.top = y + 'px';
+
+        const close = () => menu.remove();
+
+        menu.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            this.runContextAction(btn.dataset.action);
+            close();
+        });
+
+        // Dismiss on any tap/click elsewhere; deferred so the opening touch doesn't close it immediately
+        setTimeout(() => {
+            document.addEventListener('touchstart', close, { once: true, capture: true });
+            document.addEventListener('click', close, { once: true, capture: true });
+        }, 0);
+    },
+
+    runContextAction(action) {
+        // OS is instantiated at the bottom of this file; any real user tap on the
+        // menu happens well after that, so the reference below is always ready.
+        const wm = OS.windowManager;
+        switch (action) {
+            case 'settings': {
+                const icon = document.querySelector('[data-app="settings"]');
+                if (icon) icon.click();
+                break;
+            }
+            case 'reset-layout':
+                wm.clearSavedState();
+                showSecretOverlay('overlay-accepted', `
+                    <div class="so-big-icon">🔄</div>
+                    <div class="so-title">LAYOUT RESET</div>
+                    <div class="so-sub">Saved window positions cleared</div>
+                `, 1800);
+                break;
+            case 'close-all':
+                Array.from(wm.windows.values()).forEach(win => wm.close(win));
+                break;
+            case 'tutorial':
+                localStorage.removeItem('nexus_tutorial_seen');
+                new TutorialManager().start();
+                break;
+        }
     },
 
     handleTap() {

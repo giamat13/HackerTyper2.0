@@ -11,9 +11,9 @@
     <link rel="stylesheet" href="styles.css">
 
     <!-- Google Analytics via Firebase -->
-    <!-- <script type="module">
+    <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
-        import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
+        import { getAnalytics, logEvent, isSupported } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
         const firebaseConfig = {
             apiKey: "AIzaSyAYbaVCWzkkfEaEZyEBsdEvb6mL6JxgCsM",
             authDomain: "fakehacker-prank.firebaseapp.com",
@@ -23,12 +23,19 @@
             appId: "1:351461029122:web:877686697ed86eba19be1b",
             measurementId: "G-KQ901LJ4J1"
         };
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
-        logEvent(analytics, 'page_view');
-        window._analytics = analytics;
-        window._logEvent = logEvent;
-    </script> -->
+        // isSupported() resolves false in browsers/contexts without IndexedDB
+        // (some private-browsing modes, ad-blockers, etc.) — fail quietly there
+        // rather than throwing, since analytics is a non-critical enhancement.
+        isSupported().then((supported) => {
+            if (!supported) return;
+            const app = initializeApp(firebaseConfig);
+            const analytics = getAnalytics(app);
+            logEvent(analytics, 'page_view');
+            window._analytics = analytics;
+            window._logEvent = logEvent;
+            document.dispatchEvent(new CustomEvent('nexus-analytics-ready'));
+        }).catch(() => { /* analytics unavailable — app works fine without it */ });
+    </script>
 </head>
 <body>
     <!-- Boot Screen -->
