@@ -319,6 +319,47 @@ body {
 .mw-log-entry.error { color: #f00; }
 .mw-log-time { color: #666; }
 
+/* ==================== BOTNET / DDOS ==================== */
+.botnet-container { width: 100%; min-width: 520px; height: 100%; background: #000; display: flex; flex-direction: column; font-family: var(--font-mono); }
+
+.bn-stats-row { display: flex; border-bottom: 1px solid rgba(0,255,0,0.2); flex-shrink: 0; }
+.bn-stat-box { flex: 1; padding: 10px; border-right: 1px solid rgba(0,255,0,0.2); text-align: center; }
+.bn-stat-box:last-child { border-right: none; }
+.bn-stat-label { font-size: 9px; color: #666; letter-spacing: 2px; margin-bottom: 4px; }
+.bn-stat-value { font-size: 13px; color: var(--primary); font-weight: bold; }
+
+.bn-map { position: relative; flex: 1; min-height: 140px; background: radial-gradient(circle at center, rgba(255,0,0,0.06) 0%, #000 75%); border-bottom: 1px solid rgba(0,255,0,0.15); overflow: hidden; }
+.bn-bot-dot { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 6px var(--primary); animation: bnDotIn 0.4s ease both; }
+.bn-bot-dot.attacking { background: #f00; box-shadow: 0 0 8px #f00; animation: bnDotIn 0.4s ease both, bnPulse 0.7s ease-in-out infinite; }
+@keyframes bnDotIn { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes bnPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.6); } }
+
+.bn-power-wrap { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid rgba(0,255,0,0.15); flex-shrink: 0; }
+.bn-power-icon { font-size: 13px; }
+.bn-power-bar { flex: 1; height: 10px; background: rgba(255,0,0,0.08); border: 1px solid rgba(255,0,0,0.3); border-radius: 5px; overflow: hidden; }
+.bn-power-fill { height: 100%; width: 0; background: linear-gradient(90deg, #f80, #f00); transition: width 0.35s; box-shadow: 0 0 8px rgba(255,0,0,0.5); }
+
+.bn-target-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid rgba(0,255,0,0.15); flex-shrink: 0; flex-wrap: wrap; }
+.bn-target-label { font-size: 10px; color: #666; letter-spacing: 1px; flex-shrink: 0; }
+.bn-target-input { flex: 1; min-width: 140px; background: rgba(0,255,0,0.04); border: 1px solid rgba(0,255,0,0.3); color: var(--primary); font-family: var(--font-mono); font-size: 12px; padding: 7px 9px; border-radius: 4px; outline: none; }
+.bn-target-input:focus { border-color: var(--primary); box-shadow: 0 0 8px rgba(0,255,0,0.25); }
+.bn-target-input::placeholder { color: #555; }
+
+.bn-launch-btn, .bn-stop-btn { padding: 8px 14px; font-family: var(--font-mono); font-size: 11px; font-weight: bold; letter-spacing: 1px; cursor: pointer; border-radius: 4px; transition: all 0.2s; flex-shrink: 0; }
+.bn-launch-btn { background: rgba(255,0,0,0.15); border: 2px solid #f00; color: #f00; }
+.bn-launch-btn:hover:not(:disabled) { background: rgba(255,0,0,0.3); box-shadow: 0 0 20px rgba(255,0,0,0.4); }
+.bn-launch-btn:disabled { opacity: 0.4; cursor: default; }
+.bn-stop-btn { background: rgba(255,255,0,0.1); border: 2px solid #ff0; color: #ff0; }
+.bn-stop-btn:hover:not(:disabled) { background: rgba(255,255,0,0.25); box-shadow: 0 0 20px rgba(255,255,0,0.3); }
+.bn-stop-btn:disabled { opacity: 0.4; cursor: default; }
+
+.bn-log { height: 90px; flex-shrink: 0; background: rgba(0,0,0,0.5); padding: 6px 10px; overflow-y: auto; font-size: 10px; }
+.bn-log-entry { color: var(--primary); line-height: 1.7; opacity: 0.85; }
+.bn-log-time { color: #666; }
+.bn-ip { color: #0ff; }
+.bn-cc { color: #888; }
+.bn-flood { color: #f00; font-weight: bold; }
+
 /* ==================== CRYPTO MINER ==================== */
 .miner-container { width: 100%; min-width: 480px; height: 100%; background: #000; display: flex; flex-direction: column; font-family: var(--font-mono); padding: 0; }
 

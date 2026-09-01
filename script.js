@@ -929,6 +929,7 @@ const SystemState = {
         firewall: { cpu: 2, ram: 1, gpu: 0.3, network: 3, diskio: 0.1, bandwidth: 2.5 },
         downloader: { cpu: 1, ram: 1, gpu: 0.1, network: 1, diskio: 2, bandwidth: 5 },
         malware: { cpu: 3, ram: 1.5, gpu: 0.5, network: 2, diskio: 0.5, bandwidth: 1.5 },
+        botnet: { cpu: 2, ram: 1, gpu: 0.2, network: 4, diskio: 0.2, bandwidth: 6 },
         miner: { cpu: 10, ram: 3, gpu: 8, network: 0.5, diskio: 0.3, bandwidth: 1 },
         cracker: { cpu: 5, ram: 2, gpu: 0.2, network: 0.3, diskio: 0.6, bandwidth: 0.4 },
         cctv: { cpu: 3, ram: 2, gpu: 5, network: 4, diskio: 0.3, bandwidth: 4 },
@@ -1835,6 +1836,165 @@ const APPS = {
             });
 
             container.cleanup = () => { SystemState.clearBoost('malware'); };
+        }
+    },
+
+    // ==================== NEW: BOTNET / DDOS ====================
+    botnet: {
+        title: '🕸️ BOTNET / DDOS',
+        render: (container) => {
+            // idle: C2 beaconing while recruiting bots
+            SystemState.setBoost('botnet', { network: [2, 10], cpu: [1, 4] });
+            container.className = 'botnet-container';
+
+            const countries = ['US','RU','CN','BR','IN','DE','FR','UA','VN','ID','TR','NG','PL','KR','GB','JP','MX','CA'];
+
+            container.innerHTML = `
+                <div class="bn-stats-row">
+                    <div class="bn-stat-box">
+                        <div class="bn-stat-label">BOTS ONLINE</div>
+                        <div class="bn-stat-value" id="bn-bots">0</div>
+                    </div>
+                    <div class="bn-stat-box">
+                        <div class="bn-stat-label">ATTACK POWER</div>
+                        <div class="bn-stat-value" id="bn-power">0 Gbps</div>
+                    </div>
+                    <div class="bn-stat-box">
+                        <div class="bn-stat-label">REQUESTS/SEC</div>
+                        <div class="bn-stat-value" id="bn-rps">0</div>
+                    </div>
+                    <div class="bn-stat-box">
+                        <div class="bn-stat-label">STATUS</div>
+                        <div class="bn-stat-value" id="bn-status" style="color:#ff0">RECRUITING</div>
+                    </div>
+                </div>
+                <div class="bn-map" id="bn-map"></div>
+                <div class="bn-power-wrap">
+                    <span class="bn-power-icon">⚡</span>
+                    <div class="bn-power-bar"><div class="bn-power-fill" id="bn-power-fill" style="width:0%"></div></div>
+                </div>
+                <div class="bn-target-row">
+                    <span class="bn-target-label">TARGET:</span>
+                    <input type="text" id="bn-target" class="bn-target-input" placeholder="e.g. victim-server.com" autocomplete="off" spellcheck="false">
+                    <button class="bn-launch-btn" id="bn-launch">💥 LAUNCH ATTACK</button>
+                    <button class="bn-stop-btn" id="bn-stop" disabled>⏹ STOP</button>
+                </div>
+                <div class="bn-log" id="bn-log"></div>
+            `;
+
+            const mapEl = container.querySelector('#bn-map');
+            const botsEl = container.querySelector('#bn-bots');
+            const powerEl = container.querySelector('#bn-power');
+            const rpsEl = container.querySelector('#bn-rps');
+            const statusEl = container.querySelector('#bn-status');
+            const powerFill = container.querySelector('#bn-power-fill');
+            const targetInput = container.querySelector('#bn-target');
+            const launchBtn = container.querySelector('#bn-launch');
+            const stopBtn = container.querySelector('#bn-stop');
+            const log = container.querySelector('#bn-log');
+
+            const addLog = (html, cls) => {
+                const e = document.createElement('div');
+                e.className = 'bn-log-entry' + (cls ? ' ' + cls : '');
+                e.innerHTML = html;
+                log.prepend(e);
+                if (log.children.length > 40) log.lastChild.remove();
+            };
+
+            let botCount = 0;
+            let attacking = false;
+            const MAX_VISUAL_BOTS = 70;
+            const MAX_BOTS = 4000;
+
+            const speedMultiplier = SystemState.getSpeedMultiplier('network');
+            const recruitInterval = setInterval(() => {
+                if (botCount >= MAX_BOTS) return;
+                const t = SystemState.getThrottle(['network', 'cpu']);
+                const add = Math.max(1, Math.round((1 + Math.random() * 3) * t));
+                botCount += add;
+                botsEl.textContent = botCount.toLocaleString();
+
+                for (let i = 0; i < add && mapEl.children.length < MAX_VISUAL_BOTS; i++) {
+                    const dot = document.createElement('div');
+                    dot.className = 'bn-bot-dot';
+                    dot.style.left = Utils.random(2, 96) + '%';
+                    dot.style.top = Utils.random(4, 92) + '%';
+                    dot.style.animationDelay = (Math.random() * 0.3) + 's';
+                    if (attacking) dot.classList.add('attacking');
+                    mapEl.appendChild(dot);
+                }
+
+                const ip = `${Utils.random(1, 223)}.${Utils.random(0, 255)}.${Utils.random(0, 255)}.${Utils.random(1, 254)}`;
+                const cc = countries[Utils.random(0, countries.length - 1)];
+                addLog(`<span class="bn-log-time">[${new Date().toLocaleTimeString()}]</span> BOT <span class="bn-ip">${ip}</span> <span class="bn-cc">[${cc}]</span> connected to C2`);
+
+                if (botCount > 30 && statusEl.textContent === 'RECRUITING') {
+                    statusEl.textContent = 'READY';
+                    statusEl.style.color = '#0f0';
+                }
+            }, Math.max(150, 400 / speedMultiplier));
+
+            let attackInterval = null;
+            let powerRampInterval = null;
+            let currentPower = 0;
+
+            launchBtn.addEventListener('click', () => {
+                if (attacking) return;
+                if (botCount < 5) {
+                    addLog(`<span style="color:#f00">[ERROR] Not enough bots online — wait for recruitment.</span>`);
+                    return;
+                }
+                const target = targetInput.value.trim() || `${Utils.random(1, 223)}.${Utils.random(0, 255)}.${Utils.random(0, 255)}.${Utils.random(1, 254)}`;
+                targetInput.value = target;
+                attacking = true;
+                launchBtn.disabled = true;
+                stopBtn.disabled = false;
+                statusEl.textContent = 'ATTACKING';
+                statusEl.style.color = '#f00';
+                addLog(`<span style="color:#f00">[LAUNCH] Flood initiated against <strong>${target}</strong> using ${botCount.toLocaleString()} bots</span>`);
+                SystemState.setBoost('botnet', { network: [55, 92], cpu: [30, 68], bandwidth: [60, 95] });
+                container.querySelectorAll('.bn-bot-dot').forEach(d => d.classList.add('attacking'));
+
+                powerRampInterval = setInterval(() => {
+                    currentPower = Math.min(100, currentPower + Utils.random(3, 9));
+                    powerFill.style.width = currentPower + '%';
+                    const gbps = (currentPower * (botCount / 50)).toFixed(1);
+                    powerEl.textContent = `${gbps} Gbps`;
+                    const rps = Math.round(botCount * currentPower * 4.2);
+                    rpsEl.textContent = rps.toLocaleString();
+                }, 400);
+
+                attackInterval = setInterval(() => {
+                    const codes = ['503', '504', 'TIMEOUT', 'RESET'];
+                    const c = codes[Utils.random(0, codes.length - 1)];
+                    addLog(`<span class="bn-flood">FLOOD →</span> ${target} <span style="color:#f80">[${c}]</span>`);
+                }, Math.max(100, 300 / speedMultiplier));
+            });
+
+            stopBtn.addEventListener('click', () => {
+                if (!attacking) return;
+                attacking = false;
+                launchBtn.disabled = false;
+                stopBtn.disabled = true;
+                statusEl.textContent = 'READY';
+                statusEl.style.color = '#0f0';
+                clearInterval(attackInterval);
+                clearInterval(powerRampInterval);
+                currentPower = 0;
+                powerFill.style.width = '0%';
+                powerEl.textContent = '0 Gbps';
+                rpsEl.textContent = '0';
+                container.querySelectorAll('.bn-bot-dot').forEach(d => d.classList.remove('attacking'));
+                SystemState.setBoost('botnet', { network: [2, 10], cpu: [1, 4] });
+                addLog(`<span style="color:#ff0">[STOPPED] Attack halted.</span>`);
+            });
+
+            container.cleanup = () => {
+                clearInterval(recruitInterval);
+                clearInterval(attackInterval);
+                clearInterval(powerRampInterval);
+                SystemState.clearBoost('botnet');
+            };
         }
     },
 
